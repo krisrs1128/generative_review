@@ -1,0 +1,159 @@
+---
+title: "Blocking Example"
+output: html_notebook
+---
+```{r}
+library(tidyverse)
+library(rstan)
+th <- theme_minimal() + 
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "#f7f7f7"),
+    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    legend.position = "bottom"
+  )
+theme_set(th)
+```
+
+* First, generate a design, specifying which people are given which treatments
+and which control
+* Then, write a function that simulates data given the design 
+* Then write a function to estimate unknown effects given a design
+* Loop that function over a few designs and many simulated datasets, to come up
+with notion of power
+
+First, we create the three different designs.
+
+```{r}
+N <- 60
+basic_design <- tibble(
+  id = seq_len(N),
+  subject = id,
+  treatment = factor(sample(rep(c("A", "B", "C"), each = N / 3)))
+)
+
+blocked_design <- tibble(
+  id = seq_len(N),
+  subject = rep(1:(N / 3), each = 3),
+  treatment = as.factor(rep(c("A", "B", "C"), N / 3))
+) %>%
+  group_by(subject) %>%
+  mutate(treatment = sample(treatment)) %>%
+  ungroup()
+
+# first generate full design with 3 * N / 2 people, then discard third of treatments
+compromise_design <- tibble(
+  id = seq_len(3 * N / 2),
+  subject = rep(1:(N / 2), each = 3),
+  treatment = as.factor(rep(c("A", "B", "C"), N / 2))
+) %>%
+  group_by(subject) %>%
+  mutate(treatment = sample(treatment)) %>%
+  slice_head(n = 2) %>%
+  ungroup()
+```
+
+This is how the designs look. The basic design just samples 90 people and
+assigns each to one of the three treatments at random. The blocked design gives
+all three treatments to 30 people. The compromise randomly selects 2 treatments
+for each of 45 people.
+
+```{r}
+basic_design
+blocked_design
+compromise_design
+```
+
+Next, we provide a function to generate data given one of these designs.
+
+```{r}
+simulate <- function(design, effects, depth = 500) {
+  features <- ncol(effects$treatment)
+  p <- probabilities(design, effects)
+  counts <- matrix(0, n_distinct(design, "id"), features)
+  for (i in seq_len(nrow(counts))) {
+    counts[i, ] <- rmultinom(1, depth, p[i, ])
+  }
+  
+  colnames(counts) <- seq_len(features)
+  as_tibble(counts)
+}
+
+design_effects <- function(subjects, treatments, features, 
+                           sigmas = c(1, 1), affected = 10) {
+  # subject level effects
+  effects <- list()
+  effects[["subject"]] <- rnorm(features * subjects, 0, sigmas[1]) %>%
+    matrix(nrow = subjects, ncol = features)
+  
+  # treatment level effects
+  effects[["treatment"]] <- matrix(0, treatments, features)
+  for (i in 2:treatments) {
+    effects[["treatment"]][i, 1:affected] <- rnorm(affected, 0, sigmas[2])
+  }
+  
+  effects
+}
+
+probabilities <- function(design, effects, baseline_hyper = c(2, 1)) {
+  features <- ncol(effects$treatment)
+  subjects <- nrow(effects$subject)
+  samples <- n_distinct(design, "id")
+  
+  baseline <- rnorm(features, baseline_hyper[1], baseline_hyper[2])
+  p <- matrix(0, samples, features)
+  for (i in seq_len(samples)) {
+    p[i, ] <- baseline + 
+      effects$subject[design$subject[i], ] +
+      effects$treatment[design$treatment[i], ]
+  }
+  
+  exp(p) / rowSums(exp(p))
+}
+
+```
+
+```{r}
+effects <- design_effects(N, 3, 100)
+x <- simulate(blocked_design, effects)
+x_df <- bind_cols(blocked_design, x) %>%
+  pivot_longer(-c("id", "treatment", "subject"), names_to = "feature")
+```
+
+Here are some of the effects visible from the blocked design. The first 10
+features have true effects, the rest don't.
+
+```{r, fig.height = 5, fig.width = 6}
+x_df %>%
+  filter(as.integer(feature) < 21) %>%
+  ggplot(aes(treatment, value)) +
+  geom_line(aes(group = subject), alpha = 0.4, size = 0.2) +
+  geom_point(aes(col = treatment), size = 0.5) +
+  facet_wrap(~ as.integer(feature)) +
+  scale_color_brewer(palette = "Set2") +
+  scale_y_sqrt()
+```
+
+This is the comparable figure if we didn't have any blocking. Note that the
+feature-level treatment effects are exactly the same, but now we can't draw
+lines linking the same individuals. The effects for the first 10 features are
+visible, but in some cases less obvious than when blocking was used.
+
+```{r}
+x <- simulate(basic_design, effects)
+x_df <- bind_cols(basic_design, x) %>%
+  pivot_longer(-c("id", "treatment", "subject"), names_to = "feature")
+```
+
+```{r, fig.height = 5, fig.width = 6}
+x_df %>%
+  filter(as.integer(feature) < 21) %>%
+  ggplot(aes(treatment, value)) +
+  geom_point(aes(col = treatment), size = 0.5) +
+  facet_wrap(~ as.integer(feature)) +
+  scale_color_brewer(palette = "Set2") +
+  scale_y_sqrt()
+```
+
