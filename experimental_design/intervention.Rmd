@@ -1,0 +1,58 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+set.seed(1234)
+n_times <- 100
+time_grid <- seq(-10, 10, length.out = n_times)
+```
+
+```{r}
+response <- function(times, peak_loc, height, end) {
+  mu <- rep(0, length(times))
+  rise <- peak_loc > times & times >= 0
+  mu[rise] <- seq(0, height, length.out = sum(rise))
+  fall <- times >= peak_loc & times < end
+  mu[fall] <- seq(height, 0, length.out = sum(fall))
+  mu
+}
+
+
+samples <- function(mean_fun, x, sigma = 1) {
+  mean_fun(x) + rnorm(length(x), 0, sigma)
+}
+
+times <- seq(-10, 10, length.out = 200)
+y <- response(times, 1, 10, 4)
+mean_fun <- approxfun(times, y)
+plot(times, y, type = "l")
+u <- runif(20, -10, 10)
+points(u, samples(mean_fun, u))
+```
+
+```{r}
+weighted_sampling <- function(N, intervals, weights) {
+  samples <- list()
+  interval_ix <- rmultinom(1, N, weights)
+  for (i in seq_along(interval_ix)) {
+    samples[[i]] <- runif(interval_ix[i], intervals[i, 1], intervals[i, 2])
+  }
+   
+  unlist(samples)  
+}
+```
+
+
+```{r}
+u <- seq(-10, 10, length.out = 10)
+intervals <- cbind(head(u, -1), tail(u, -1))
+weights <- 5:1
+weights <- weights / sum(weights)
+
+locs <- weighted_sampling(1e4, intervals, weights)
+hist(locs)
+```
+
