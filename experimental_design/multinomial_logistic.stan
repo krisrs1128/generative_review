@@ -10,7 +10,6 @@ data {
 }
 
 parameters {
-  array[S] vector[D] beta;
   array[S] vector[D] subject;
   array[T] vector[D] treatment;
   vector[D] baseline;
@@ -18,6 +17,6 @@ parameters {
 
 model {
   for (n in 1:N) {
-    x[n] ~ multinomial_logit(baseline);// + subject[s_ix[n]] + treatment[t_ix[n]]));
+    x[n] ~ multinomial_logit(baseline + subject[s_ix[n]] + treatment[t_ix[n]]);
   }
 }

@@ -69,7 +69,7 @@ compromise_design
 Next, we provide a function to generate data given one of these designs.
 
 ```{r}
-simulate <- function(design, effects, depth = 500) {
+simulate <- function(design, effects, depth = 100) {
   features <- ncol(effects$treatment)
   p <- probabilities(design, effects)
   counts <- matrix(0, n_distinct(design, "id"), features)
@@ -116,7 +116,7 @@ probabilities <- function(design, effects, baseline_hyper = c(2, 1)) {
 ```
 
 ```{r}
-effects <- design_effects(N, 3, 100)
+effects <- design_effects(N, 3, 50)
 x <- simulate(blocked_design, effects)
 x_df <- bind_cols(blocked_design, x) %>%
   pivot_longer(-c("id", "treatment", "subject"), names_to = "feature")
@@ -170,6 +170,5 @@ inputs <- list(
   s_ix = blocked_design$subject,
   x = as.matrix(x)
 )
-model$sample(data = inputs)
+model$variational(data = inputs)
 ```
-
