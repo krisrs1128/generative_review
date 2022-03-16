@@ -4,7 +4,7 @@ output: html_notebook
 ---
 ```{r}
 library(tidyverse)
-library(rstan)
+library(cmdstanr)
 th <- theme_minimal() + 
   theme(
     panel.grid.minor = element_blank(),
@@ -155,5 +155,21 @@ x_df %>%
   facet_wrap(~ as.integer(feature)) +
   scale_color_brewer(palette = "Set2") +
   scale_y_sqrt()
+```
+
+Now we'll write a small program to estimate the posterior on betas.
+
+```{r}
+model <- cmdstan_model("multinomial_logistic.stan")
+inputs <- list(
+  N = N,
+  D = ncol(x),
+  T = nrow(effects$treatment),
+  S = n_distinct(blocked_design, "subject"),
+  t_ix = as.integer(blocked_design$treatment),
+  s_ix = blocked_design$subject,
+  x = as.matrix(x)
+)
+model$sample(data = inputs)
 ```
 
