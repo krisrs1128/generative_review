@@ -6,9 +6,17 @@ output: html_notebook
 ```{r}
 library(tidyverse)
 library(splines)
+th <- theme_minimal() + 
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "#f7f7f7"),
+    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    legend.position = "bottom"
+  )
+theme_set(th)
 set.seed(1234)
-n_times <- 100
-time_grid <- seq(-10, 10, length.out = n_times)
 ```
 
 ```{r}
