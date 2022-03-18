@@ -22,11 +22,13 @@ The block below is needed to install the simulator. In theory, it should be
 possible to install using reticulate, but I find it easier to just use the
 terminal.
 
-```{sh}
+```{sh, eval = FALSE}
 conda create -n covid
 conda activate covid
 conda install numpy=1.21
 pip install covasim
+pip install sciris
+pip install optuna
 ```
 
 ```{r}
@@ -40,30 +42,83 @@ import covasim as cv
 testing = cv.test_prob(symp_prob=0.8, asymp_prob=0.001)
 tracing = cv.contact_tracing(trace_probs=0.1, trace_time=5.0)
 distancing = cv.change_beta(changes=1.0, days=10)
+```
 
-# overall simulation parameters
-pars = {
-  "pop_size": 5e4,
-  "pop_infected": 5e2,
-  "start_day": "2020-09-01",
-  "end_day": "2021-01-01",
-  #"interventions": [testing, tracing, distancing]
-  "interventions": [testing]
+This is a calibration example.
+
+```{python}
+import sciris as sc
+import covasim as cv
+
+# Create default simulation
+pars = sc.objdict(
+  pop_size = 1e4,
+  start_day = "2020-02-01",
+  end_day = "2020-04-11",
+  beta = 0.015,
+  rel_death_prob = 1.0,
+  interventions = cv.test_num(daily_tests="data")
+)
+sim = cv.Sim(pars=pars, datafile="calibration_data.csv")
+
+# Parameters to calibrate -- format is best, low, high
+calib_pars = {
+  "beta": [pars.beta, 0.005, 0.20],
+  "rel_death_prob": [pars.rel_death_prob, 0.5, 3.0]
 }
 
-
-sim = cv.Sim(pars)
-sim.run()
-sim_res = sim.to_df()
+# Run the calibration
+n_trials = 25
+n_workers = 4
+calib = sim.calibrate(calib_pars=calib_pars, n_trials=n_trials, n_workers=n_workers)
 ```
 
+Now we can use these calibration parameters.
+
+```{python}
+pars.beta = calib.best_pars["beta"]
+pars.rel_death_prob = calib.best_pars["rel_death_prob"]
+```
+
+```{python}
+```
+
+Now that we have a reasonably calibrated model, let's try to learn an emulator
+that allows us to see the effect of tracing and testing measures.
+```{python}
+import numpy as np
+np.linspace(0.1, 1.0, 10)
+```
+
+```{python}
+import numpy
+
+results = []
+
+for symp_prob in np.linspace(0, 1, 5):
+  for trace_prob in np.linspace(0, 1, 5):
+    for trace_time in np.linspace(0, 5, 4):
+      testing = cv.test_prob(symp_prob=symp_prob)
+      tracing = cv.contact_tracing(trace_probs=trace_prob, trace_time=trace_time)
+      pars.interventions = [testing, tracing]
+      
+      for rep in range(2):
+        cv.Sim(pars=pars)
+        sim.run()
+        
+        results.append({
+          "symp_prob": symp_prob,
+          "trace_prob": trace_prob,
+          "trace_time": trace_time,
+          "results": sim.to_df()
+        }
+```
 
 ```{r}
-ggplot(py$sim_res) +
-  geom_point(aes(t, new_infections))
+py$results
+
+
+#ggplot(py$sim_res) +
+#  geom_point(aes(t, new_infections))
 ```
 
-```{r}
-ggplot(py$sim_res) +
-  geom_point(aes(t, new_tests))
-```
