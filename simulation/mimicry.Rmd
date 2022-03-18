@@ -3,27 +3,41 @@ title: "R Notebook"
 output: html_notebook
 ---
 ```{r}
+library(tidyverse)
 library(nlrx)
+th <- theme_minimal() + 
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "#f7f7f7"),
+    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    legend.position = "bottom"
+  )
+theme_set(th)
+
 dir.create("nl")
-#download_netlogo("nl/", "6.2.0") # have to manually install
-Sys.setenv("JAVA_HOME" = "/usr/") # found path using, `which java` in terminal
+#download_netlogo("nl/", "6.1.0") # have to manually install
 
 nlobj <- nl(
-  nlversion = "6.2.0", 
-  nlpath = "nl/NetLogo 6.2.0/", 
-  modelpath = "nl/NetLogo 6.2.0/models/Sample Models/Biology/Evolution/Mimicry.nlogo",
-  jvmmem = 4096
+  nlversion = "6.1.0", 
+  nlpath = "nl/NetLogo 6.1.0/", 
+  modelpath = "nl/NetLogo 6.1.0/models/Sample Models/Biology/Evolution/Mimicry.nlogo",
+  jvmmem = 1024
 )
 ```
 
 ```{r}
+dir.create("mimcry_results")
 nlobj@experiment <- experiment(
   expname = "mimcry",
-  outpath = "./mimcry",
+  outpath = "./mimcry_results/",
   repetition = 1,
   tickmetrics = "true",
-  runtime = 11,
-  evalticks = seq(1, 11, 5),
+  idsetup ="setup",
+  idgo ="go",
+  runtime = 500,
+  evalticks = seq_len(500),
   variables = list(
     "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
     ),
@@ -31,15 +45,36 @@ nlobj@experiment <- experiment(
     "memory-duration" = 30,
     "memory-size" = 3
   ),
-  metrics = c("count monarchs", "monarch colors", "viceroy colors")
+  metrics.turtles = list("turtles" = c("color")),
+  metrics = c("count monarchs", "count viceroys")
 )
 ```
 
 ```{r}
 nlobj@simdesign <- simdesign_lhs(nlobj, samples = 2, nseeds = 1)
-eval_variables_constants(nlobj)
 print(nlobj)
 results <- run_nl_one(nlobj, seed = 1, siminputrow = 1)
 ```
 
+
+```{r}
+color_shift <- results %>%
+  select(`[step]`, starts_with("count"), metrics.turtles) %>%
+  unnest(metrics.turtles) %>%
+  filter(breed != "birds")
+```
+
+
+```{r}
+color_stats <- color_shift %>%
+  group_by(breed, `[step]`) %>%
+  summarise(
+    mean = mean(color),
+    sd = sd(color)
+  )
+
+ggplot(color_stats, aes(`[step]`, fill = breed, col = breed)) +
+  geom_ribbon(aes(`[step]`, ymin = mean - 1.9 * sd, ymax = mean + 1.9 * sd), alpha = 0.3) +
+  geom_line(aes(`[step]`, mean))
+```
 
