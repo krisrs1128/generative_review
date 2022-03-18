@@ -1,0 +1,45 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(nlrx)
+dir.create("nl")
+#download_netlogo("nl/", "6.2.0") # have to manually install
+Sys.setenv("JAVA_HOME" = "/usr/") # found path using, `which java` in terminal
+
+nlobj <- nl(
+  nlversion = "6.2.0", 
+  nlpath = "nl/NetLogo 6.2.0/", 
+  modelpath = "nl/NetLogo 6.2.0/models/Sample Models/Biology/Evolution/Mimicry.nlogo",
+  jvmmem = 4096
+)
+```
+
+```{r}
+nlobj@experiment <- experiment(
+  expname = "mimcry",
+  outpath = "./mimcry",
+  repetition = 1,
+  tickmetrics = "true",
+  runtime = 11,
+  evalticks = seq(1, 11, 5),
+  variables = list(
+    "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
+    ),
+  constants = list(
+    "memory-duration" = 30,
+    "memory-size" = 3
+  ),
+  metrics = c("count monarchs", "monarch colors", "viceroy colors")
+)
+```
+
+```{r}
+nlobj@simdesign <- simdesign_lhs(nlobj, samples = 2, nseeds = 1)
+eval_variables_constants(nlobj)
+print(nlobj)
+results <- run_nl_one(nlobj, seed = 1, siminputrow = 1)
+```
+
+
