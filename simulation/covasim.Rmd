@@ -1,0 +1,69 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(reticulate)
+library(tidyverse)
+th <- theme_minimal() + 
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "#f7f7f7"),
+    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    legend.position = "bottom"
+  )
+theme_set(th)
+```
+
+The block below is needed to install the simulator. In theory, it should be
+possible to install using reticulate, but I find it easier to just use the
+terminal.
+
+```{sh}
+conda create -n covid
+conda activate covid
+conda install numpy=1.21
+pip install covasim
+```
+
+```{r}
+use_condaenv("covid", required = TRUE)
+```
+
+```{python}
+import covasim as cv
+
+# a few kinds of interventions
+testing = cv.test_prob(symp_prob=0.8, asymp_prob=0.001)
+tracing = cv.contact_tracing(trace_probs=0.1, trace_time=5.0)
+distancing = cv.change_beta(changes=1.0, days=10)
+
+# overall simulation parameters
+pars = {
+  "pop_size": 5e4,
+  "pop_infected": 5e2,
+  "start_day": "2020-09-01",
+  "end_day": "2021-01-01",
+  #"interventions": [testing, tracing, distancing]
+  "interventions": [testing]
+}
+
+
+sim = cv.Sim(pars)
+sim.run()
+sim_res = sim.to_df()
+```
+
+
+```{r}
+ggplot(py$sim_res) +
+  geom_point(aes(t, new_infections))
+```
+
+```{r}
+ggplot(py$sim_res) +
+  geom_point(aes(t, new_tests))
+```
