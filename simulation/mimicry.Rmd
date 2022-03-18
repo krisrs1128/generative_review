@@ -4,8 +4,9 @@ output: pdf_document
 ---
 
 ```{r}
-library(tidyverse)
+library(EasyABC)
 library(nlrx)
+library(tidyverse)
 th <- theme_minimal() + 
   theme(
     panel.grid.minor = element_blank(),
@@ -79,17 +80,6 @@ ggplot(color_stats, aes(`[step]`, fill = breed, col = breed)) +
   geom_line(aes(`[step]`, mean))
 ```
 
-
-
-```{r}
-nlobj@experiment@variables$mutation_rate
-```
-
-```{r}
-# define prior on the mutation rate parameter
-# define a model that given the mutation rate generates the summary statistics
-# compute summary statistic on a real case, and pass in to the EasyABC function
-```
 ```{r}
 nlobj@experiment <- experiment(
   expname = "mimcry",
@@ -98,8 +88,8 @@ nlobj@experiment <- experiment(
   tickmetrics = "true",
   idsetup ="setup",
   idgo ="go",
-  runtime = 500,
-  evalticks = seq_len(500),
+  runtime = 25,
+  evalticks = seq_len(25),
   variables = list(
     "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
     ),
@@ -113,7 +103,6 @@ nlobj@experiment <- experiment(
 ```
 
 ```{r}
-
 mutation_model <- function(nlobj) {
   function(rate) {
     nlobj@experiment@variables <- list(
@@ -123,7 +112,7 @@ mutation_model <- function(nlobj) {
     results <- run_nl_one(nlobj, seed = 1, siminputrow = 1)
     
     color_stats <- results %>%
-      dplyr::select(`[step]`, starts_with("count"), metrics.turtles) %>%
+      select(`[step]`, starts_with("count"), metrics.turtles) %>%
       unnest(metrics.turtles) %>%
       filter(breed != "birds") %>%
       group_by(breed, `[step]`) %>%
@@ -138,19 +127,6 @@ mutation_model <- function(nlobj) {
 prior <- list(c("unif", 0, 100))
 m <- mutation_model(nlobj)
 test_stat <- m(30)
-ABC_mcmc(method = "Marjoram", model = m, prior = prior, summary_stat_target = test_stat)
+ABC_mcmc(method = "Marjoram", model = m, prior = prior, summary_stat_target = test_stat, n_calibration = 100)
 ```
 
-```{r}
-```
-
-```{r}
-library(EasyABC)
-
-toy_model<-function(x){ c( x[1] + x[2] + rnorm(1,0,0.1) , x[1] * x[2] + rnorm(1,0,0.1) ) }
-toy_prior=list(c("unif",0,1),c("normal",1,2))
-sum_stat_obs=c(1.5,0.5)
-
-ABC_Marjoram_original<-ABC_mcmc(method="Marjoram_original", model=toy_model, prior=toy_prior,
-  summary_stat_target=sum_stat_obs)
-```
