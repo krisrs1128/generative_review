@@ -91,33 +91,37 @@ np.linspace(0.1, 1.0, 10)
 ```
 
 ```{python}
-import numpy
+import numpy as np
 
 results = []
 
-for symp_prob in np.linspace(0, 1, 5):
-  for trace_prob in np.linspace(0, 1, 5):
-    for trace_time in np.linspace(0, 5, 4):
+i = 0
+for symp_prob in np.linspace(0, 1, 10):
+  for trace_prob in np.linspace(0, 1, 10):
+    for trace_time in np.linspace(0, 5, 5):
       testing = cv.test_prob(symp_prob=symp_prob)
       tracing = cv.contact_tracing(trace_probs=trace_prob, trace_time=trace_time)
       pars.interventions = [testing, tracing]
       
-      for rep in range(2):
-        cv.Sim(pars=pars)
-        sim.run()
+      for rep in range(5):
+        sim = cv.Sim(pars=pars)
+        sim.run(verbose = 0)
+        print(i)
+        i += 1
         
-        results.append({
-          "symp_prob": symp_prob,
-          "trace_prob": trace_prob,
-          "trace_time": trace_time,
-          "results": sim.to_df()
-        }
+        cur_res = sim.to_df()[["t", "new_infections"]]
+        cur_res[["symp_prob"]] = symp_prob
+        cur_res[["trace_prob"]] = trace_prob
+        cur_res[["trace_time"]] = trace_time
+        results.append(cur_res)
+
 ```
 
 ```{r}
-py$results
-
-
+results <- bind_rows(py$results)
+ggplot(results) +
+  geom_point(aes(t, new_infections, col = symp_prob)) +
+  scale_y_log10()
 #ggplot(py$sim_res) +
 #  geom_point(aes(t, new_infections))
 ```
