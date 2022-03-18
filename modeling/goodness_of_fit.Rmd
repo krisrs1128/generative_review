@@ -1,0 +1,203 @@
+---
+title: "Heteroskedastic Mixtures"
+output: html_notebook
+---
+```{r, message = FALSE}
+library(MCMCpack)
+library(tidyverse)
+library(cmdstanr)
+library(caret)
+library(mvtnorm)
+library(tidybayes)
+library(scico)
+th <- theme_minimal() + 
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "#f7f7f7"),
+    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(size = 13),
+    legend.position = "bottom"
+  )
+theme_set(th)
+set.seed(0318022)
+```
+
+* Simulate data from a heteroskedastic mixture of t's
+* Fit a standard GMM (stan)
+* Fit a discriminator (caret)
+* Visualize discriminator probabilities
+* Fit updated heteroskedastic model
+* Repeat discrimination
+* Fit true model
+* Repeat discrimination
+
+
+```{r}
+simulate <- function(N, K = 5, df = 8) {
+  pi <- rdirichlet(1, rep(2, K))
+  Ns <- rmultinom(1, N, prob = pi)
+  deltas <- matrix(rnorm(K * 2, 0, 5), K, 2)
+  sigmas <- map(1:K, ~ diag(rgamma(2, 5, 5)))
+  x <- list()
+  for (k in seq_len(K)) {
+    x[[k]] <- rmvt(Ns[k], sigmas[[k]], df = df, delta = deltas[k, ], type = "shifted")
+  }
+  
+  x
+}
+
+x <- simulate(250) %>%
+  map_dfr(~ as_tibble(.), .id = "k")
+```
+
+```{r}
+ggplot(x) +
+  geom_point(aes(V1, V2, col = k)) +
+  scale_color_brewer(palette = "Set2") +
+  coord_fixed()
+```
+
+```{r}
+model <- cmdstan_model("gmm.stan")
+input <- list(
+  K = 5,
+  N = nrow(x),
+  x = x %>% select(-k)
+)
+
+fit <- model$variational(input)
+```
+
+```{r}
+x_sim <- tidy_draws(fit) %>%
+  filter(.iteration < 10) %>%
+  select(.iteration, .chain, starts_with("x_sim")) %>%
+  pivot_longer(starts_with("x_sim")) %>%
+  mutate(
+    i = str_extract(name, "[0-9]+"),
+    j = str_extract(name, "[0-9]\\]$"),
+    j = str_remove(j, "]")
+  ) %>%
+  select(-name) %>%
+  pivot_wider(names_from = "j", values_from = "value")
+  
+```
+
+```{r}
+ggplot(x_sim) +
+  geom_point(aes(`1`, `2`), size = 0.5, alpha = 0.8) +
+  facet_wrap(~ .iteration) +
+  xlim(-10, 10) +
+  ylim(-10, 10) +
+  coord_fixed()
+```
+
+
+```{r}
+disc_data <- bind_rows(
+  x %>%
+    select(-k) %>%
+    mutate(y = "true"),
+  x_sim %>%
+    filter(.iteration == 1) %>%
+    select(`1`, `2`) %>%
+    rename(V1 = `1`, V2 = `2`) %>%
+    mutate(y = "simulated")
+)
+```
+
+```{r}
+ggplot(disc_data) +
+  geom_point(aes(V1, V2, col = y), alpha = 1, size = 0.9) +
+  scale_color_scico_d(palette = "berlin") +
+  coord_fixed()
+```
+
+
+```{r, message = FALSE}
+gbmGrid <-  expand.grid(
+  interaction.depth = 5,
+  n.trees = 100,
+  shrinkage = 0.1,
+  n.minobsinnode = 2
+)
+
+fit <- train(
+  x = disc_data %>% select(-y), 
+  y = disc_data$y, 
+  method = "gbm",
+  verbose = FALSE,
+  tuneGrid = gbmGrid
+)
+```
+```{r}
+table(disc_data$y, predict(fit))
+```
+
+```{r}
+x_grid <- seq(-10, 10, length.out = 100)
+x_grid <- expand.grid(x_grid, x_grid) %>%
+  as_tibble() %>%
+  rename(V1 = Var1, V2 = Var2)
+p_hat <- predict(fit, newdata = x_grid, type = "prob") %>%
+  bind_cols(x_grid)
+```
+
+```{r}
+ggplot(p_hat) +
+  geom_tile(aes(V1, V2, fill = true, col = true)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_color_scico(palette = "berlin") +
+  scale_fill_scico(palette = "berlin") +
+  coord_fixed()
+```
+
+```{r}
+model <- cmdstan_model("tmm.stan")
+input$alpha <- rep(2, 5)
+fit <- model$variational(input)
+```
+
+```{r}
+x_sim <- tidy_draws(fit) %>%
+  filter(.iteration < 10) %>%
+  select(.iteration, .chain, starts_with("x_sim")) %>%
+  pivot_longer(starts_with("x_sim")) %>%
+  mutate(
+    i = str_extract(name, "[0-9]+"),
+    j = str_extract(name, "[0-9]\\]$"),
+    j = str_remove(j, "]")
+  ) %>%
+  select(-name) %>%
+  pivot_wider(names_from = "j", values_from = "value")
+
+ggplot(x_sim) +
+  geom_point(aes(`1`, `2`), size = 0.5, alpha = 0.8) +
+  facet_wrap(~ .iteration) +
+  xlim(-10, 10) +
+  ylim(-10, 10) +
+  coord_fixed()
+```
+
+
+```{r}
+disc_data <- bind_rows(
+  x %>%
+    select(-k) %>%
+    mutate(y = "true"),
+  x_sim %>%
+    filter(.iteration == 1) %>%
+    select(`1`, `2`) %>%
+    rename(V1 = `1`, V2 = `2`) %>%
+    mutate(y = "simulated")
+)
+
+ggplot(disc_data) +
+  geom_point(aes(V1, V2, col = y), alpha = 1, size = 0.9) +
+  scale_color_scico_d(palette = "berlin") +
+  xlim(-10, 10) +
+  ylim(-10, 10) +
+  coord_fixed()
+```
