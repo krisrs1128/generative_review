@@ -5,6 +5,7 @@ output: pdf_document
 
 ```{r}
 library(EasyABC)
+library(splines)
 library(nlrx)
 library(tidyverse)
 th <- theme_minimal() + 
@@ -38,8 +39,8 @@ nlobj@experiment <- experiment(
   tickmetrics = "true",
   idsetup ="setup",
   idgo ="go",
-  runtime = 500,
-  evalticks = seq_len(500),
+  runtime = 400,
+  evalticks = seq_len(400),
   variables = list(
     "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
     ),
@@ -53,15 +54,13 @@ nlobj@experiment <- experiment(
 ```
 
 ```{r}
-nlobj@simdesign <- simdesign_lhs(nlobj, samples = 2, nseeds = 1)
-print(nlobj)
-results <- run_nl_one(nlobj, seed = 1, siminputrow = 1)
+nlobj@simdesign <- simdesign_lhs(nlobj, samples = 10, nseeds = 1)
+results <- run_nl_all(nlobj)
 ```
-
 
 ```{r}
 color_shift <- results %>%
-  select(`[step]`, starts_with("count"), metrics.turtles) %>%
+  select(siminputrow, `mutation-rate`, `[step]`, starts_with("count"), metrics.turtles) %>%
   unnest(metrics.turtles) %>%
   filter(breed != "birds")
 ```
@@ -69,64 +68,39 @@ color_shift <- results %>%
 
 ```{r}
 color_stats <- color_shift %>%
-  group_by(breed, `[step]`) %>%
+  group_by(breed, siminputrow, `mutation-rate`, `[step]`) %>%
   summarise(
     mean = mean(color),
     sd = sd(color)
   )
 
-ggplot(color_stats, aes(`[step]`, fill = breed, col = breed)) +
+ggplot(
+    color_stats %>% filter(siminputrow < 10), 
+    aes(`[step]`, fill = breed, col = breed)
+  ) +
   geom_ribbon(aes(`[step]`, ymin = mean - 1.9 * sd, ymax = mean + 1.9 * sd), alpha = 0.3) +
-  geom_line(aes(`[step]`, mean))
+  geom_line(aes(`[step]`, mean)) +
+  facet_wrap(~ reorder(siminputrow, `mutation-rate`))
 ```
-
 ```{r}
-nlobj@experiment <- experiment(
-  expname = "mimcry",
-  outpath = "./mimcry_results/",
-  repetition = 1,
-  tickmetrics = "true",
-  idsetup ="setup",
-  idgo ="go",
-  runtime = 25,
-  evalticks = seq_len(25),
-  variables = list(
-    "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
-    ),
-  constants = list(
-    "memory-duration" = 30,
-    "memory-size" = 3
-  ),
-  metrics.turtles = list("turtles" = c("color")),
-  metrics = c("count monarchs", "count viceroys")
-)
+color_diff <- color_stats %>%
+  select(breed, siminputrow, `mutation-rate`, `[step]`, breed, mean) %>%
+  pivot_wider(names_from = "breed", values_from = "mean") %>%
+  mutate(diff = viceroys - monarchs)
+
+ggplot(color_diff) +
+  geom_line(aes(`[step]`, diff, col = `mutation-rate`, group = siminputrow))
 ```
-
 ```{r}
-mutation_model <- function(nlobj) {
-  function(rate) {
-    nlobj@experiment@variables <- list(
-      "mutation-rate" = list(min = rate - 1, max = rate + 1, qfun = "qunif")
-      )
-    nlobj@simdesign <- simdesign_lhs(nlobj, samples = 1, nseeds = 1)
-    results <- run_nl_one(nlobj, seed = 1, siminputrow = 1)
-    
-    color_stats <- results %>%
-      select(`[step]`, starts_with("count"), metrics.turtles) %>%
-      unnest(metrics.turtles) %>%
-      filter(breed != "birds") %>%
-      group_by(breed, `[step]`) %>%
-      summarise(mean = mean(color)) %>%
-      pivot_wider(names_from = "breed", values_from = "mean") %>%
-      mutate(diff = viceroys - monarchs)
-    
-    coef(lm(diff ~ `[step]`, data = color_stats))[2]
-  }
-}
+library(broom)
+summary_stats <- color_diff %>%
+  split(.$siminputrow) %>%
+  map_dfr(~ tidy(lm(diff ~ bs(`[step]`, df = 3), data = .)), .id = "siminputrow") %>%
+  mutate(siminputrow = as.integer(siminputrow)) %>%
+  left_join(color_diff %>% select(siminputrow, `mutation-rate`) %>% unique())
 
-prior <- list(c("unif", 0, 100))
-m <- mutation_model(nlobj)
-test_stat <- m(30)
-ABC_sequential(method = "Delmoral", model = m, prior = prior, nb_simul = 3, summary_stat_target = test_stat, tolerance = 0.1, verbose = TRUE, progress = TRUE)
+ggplot(summary_stats) +
+  geom_point(aes(`mutation-rate`, estimate)) +
+  facet_wrap(~ term)
 ```
 
