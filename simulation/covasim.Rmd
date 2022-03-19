@@ -5,6 +5,8 @@ output: html_notebook
 
 ```{r}
 library(reticulate)
+library(laGP)
+library(scico)
 library(tidyverse)
 th <- theme_minimal() + 
   theme(
@@ -35,7 +37,7 @@ pip install optuna
 use_condaenv("covid", required = TRUE)
 ```
 
-```{python}
+```{python, message = FALSE}
 import covasim as cv
 
 # a few kinds of interventions
@@ -46,7 +48,7 @@ distancing = cv.change_beta(changes=1.0, days=10)
 
 This is a calibration example.
 
-```{python}
+```{python, message = FALSE}
 import sciris as sc
 import covasim as cv
 
@@ -70,7 +72,12 @@ calib_pars = {
 # Run the calibration
 n_trials = 25
 n_workers = 4
-calib = sim.calibrate(calib_pars=calib_pars, n_trials=n_trials, n_workers=n_workers)
+calib = sim.calibrate(
+  calib_pars=calib_pars, 
+  n_trials=n_trials, 
+  n_workers=n_workers, 
+  verbose = 0
+)
 ```
 
 Now we can use these calibration parameters.
@@ -80,31 +87,24 @@ pars.beta = calib.best_pars["beta"]
 pars.rel_death_prob = calib.best_pars["rel_death_prob"]
 ```
 
-```{python}
-```
-
 Now that we have a reasonably calibrated model, let's try to learn an emulator
 that allows us to see the effect of tracing and testing measures.
-```{python}
-import numpy as np
-np.linspace(0.1, 1.0, 10)
-```
 
-```{python}
+```{python, message = FALSE}
 import numpy as np
 
 results = []
 
 i = 0
-for symp_prob in np.linspace(0, 1, 10):
-  for trace_prob in np.linspace(0, 1, 10):
-    for trace_time in np.linspace(0, 5, 5):
+for symp_prob in np.linspace(0.1, .9, 5):
+  for trace_prob in np.linspace(.1, .9, 5):
+    for trace_time in np.linspace(1, 3, 2):
       testing = cv.test_prob(symp_prob=symp_prob)
       tracing = cv.contact_tracing(trace_probs=trace_prob, trace_time=trace_time)
       pars.interventions = [testing, tracing]
       
       for rep in range(5):
-        sim = cv.Sim(pars=pars)
+        sim = cv.Sim(pars=pars, verbose = 0)
         sim.run(verbose = 0)
         print(i)
         i += 1
@@ -113,16 +113,52 @@ for symp_prob in np.linspace(0, 1, 10):
         cur_res[["symp_prob"]] = symp_prob
         cur_res[["trace_prob"]] = trace_prob
         cur_res[["trace_time"]] = trace_time
+        cur_res[["rep"]] = rep
         results.append(cur_res)
+```
+
+```{r}
 
 ```
 
 ```{r}
 results <- bind_rows(py$results)
 ggplot(results) +
-  geom_point(aes(t, new_infections, col = symp_prob)) +
+  geom_point(
+    aes(t, new_infections, col = as.factor(trace_time)),
+    alpha = 0.8, size = 0.5
+    ) +
+  facet_grid(trace_prob ~ symp_prob) +
+  scale_color_brewer(palette = "Set2") +
   scale_y_log10()
-#ggplot(py$sim_res) +
-#  geom_point(aes(t, new_infections))
+```
+
+```{r}
+xy <- results %>%
+  filter(trace_prob == 0.1, trace_time == 1)
+x <- xy %>%
+  select(t, symp_prob, trace_prob, trace_time)
+x_ <- apply(x, 2, function(z) z / max(z))
+x_ref <- expand.grid(
+  t = seq(0, 1, length.out = 20),
+  symp_prob = seq(0, 1, length.out = 20),
+  trace_prob = 1,
+  trace_time = 1
+)
+
+y_hat <- aGP(x_, log(1 + xy$new_infections), x_ref)
+```
+
+```{r}
+x_ref <- as.matrix(x_ref) %*% diag(apply(x, 2, max))
+colnames(x_ref) <- colnames(x)
+y_hat_df <- cbind(x_ref, y_hat = y_hat$mean) %>%
+  as.data.frame()
+```
+
+```{r}
+ggplot(y_hat_df) +
+  geom_smooth(aes(t, exp(y_hat) - 1, col = symp_prob, group = symp_prob), size = .5, se = F, span = 1) +
+  scale_color_scico(palette = "batlow")
 ```
 

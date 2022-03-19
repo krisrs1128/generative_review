@@ -127,6 +127,6 @@ mutation_model <- function(nlobj) {
 prior <- list(c("unif", 0, 100))
 m <- mutation_model(nlobj)
 test_stat <- m(30)
-ABC_mcmc(method = "Marjoram", model = m, prior = prior, summary_stat_target = test_stat, n_calibration = 100)
+ABC_sequential(method = "Delmoral", model = m, prior = prior, nb_simul = 3, summary_stat_target = test_stat, tolerance = 0.1, verbose = TRUE, progress = TRUE)
 ```
 
