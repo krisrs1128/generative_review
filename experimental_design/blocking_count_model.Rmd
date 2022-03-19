@@ -170,5 +170,27 @@ inputs <- list(
   s_ix = blocked_design$subject,
   x = as.matrix(x)
 )
-model$variational(data = inputs)
+
+fit <- model$variational(data = inputs)
 ```
+
+```{r}
+library(tidybayes)
+library(posterior)
+
+treatment_estimates <- tidy_draws(fit) %>%
+ select(`.chain`, `.iteration`, starts_with("treatment")) %>%
+  pivot_longer(starts_with("treatment"), names_to = "coef") %>%
+  mutate(
+    treatment = as.integer(str_extract(coef, "[0-9]+")),
+    feature = str_extract(coef, "[0-9]+\\]$"),
+    feature = as.integer(str_remove(feature, "]"))
+  )
+```
+
+```{r}
+ggplot(treatment_estimates %>% filter(feature < 20)) +
+  stat_interval(aes(y = as.factor(treatment), x = value)) +
+  facet_wrap(~ feature)
+```
+
