@@ -5,6 +5,9 @@ output: html_notebook
 ```{r}
 library(tidyverse)
 library(cmdstanr)
+library(tidybayes)
+library(posterior)
+
 th <- theme_minimal() + 
   theme(
     panel.grid.minor = element_blank(),
@@ -27,7 +30,7 @@ with notion of power
 First, we create the three different designs.
 
 ```{r}
-N <- 60
+N <- 180
 basic_design <- tibble(
   id = seq_len(N),
   subject = id,
@@ -69,7 +72,7 @@ compromise_design
 Next, we provide a function to generate data given one of these designs.
 
 ```{r}
-simulate <- function(design, effects, depth = 100) {
+simulate <- function(design, effects, depth = 500) {
   features <- ncol(effects$treatment)
   p <- probabilities(design, effects)
   counts <- matrix(0, n_distinct(design, "id"), features)
@@ -82,7 +85,7 @@ simulate <- function(design, effects, depth = 100) {
 }
 
 design_effects <- function(subjects, treatments, features, 
-                           sigmas = c(1, 1), affected = 10) {
+                           sigmas = c(1, 2), affected = 10) {
   # subject level effects
   effects <- list()
   effects[["subject"]] <- rnorm(features * subjects, 0, sigmas[1]) %>%
@@ -90,23 +93,21 @@ design_effects <- function(subjects, treatments, features,
   
   # treatment level effects
   effects[["treatment"]] <- matrix(0, treatments, features)
-  for (i in 2:treatments) {
+  for (i in 1:treatments) {
     effects[["treatment"]][i, 1:affected] <- rnorm(affected, 0, sigmas[2])
   }
   
   effects
 }
 
-probabilities <- function(design, effects, baseline_hyper = c(2, 1)) {
+probabilities <- function(design, effects) {
   features <- ncol(effects$treatment)
   subjects <- nrow(effects$subject)
   samples <- n_distinct(design, "id")
   
-  baseline <- rnorm(features, baseline_hyper[1], baseline_hyper[2])
   p <- matrix(0, samples, features)
   for (i in seq_len(samples)) {
-    p[i, ] <- baseline + 
-      effects$subject[design$subject[i], ] +
+    p[i, ] <- effects$subject[design$subject[i], ] +
       effects$treatment[design$treatment[i], ]
   }
   
@@ -116,9 +117,9 @@ probabilities <- function(design, effects, baseline_hyper = c(2, 1)) {
 ```
 
 ```{r}
-effects <- design_effects(N, 3, 50)
-x <- simulate(blocked_design, effects)
-x_df <- bind_cols(blocked_design, x) %>%
+effects <- design_effects(N, 3, 25)
+x_blocked <- simulate(blocked_design, effects)
+x_df <- bind_cols(blocked_design, x_blocked) %>%
   pivot_longer(-c("id", "treatment", "subject"), names_to = "feature")
 ```
 
@@ -142,8 +143,8 @@ lines linking the same individuals. The effects for the first 10 features are
 visible, but in some cases less obvious than when blocking was used.
 
 ```{r}
-x <- simulate(basic_design, effects)
-x_df <- bind_cols(basic_design, x) %>%
+x_basic <- simulate(basic_design, effects)
+x_df <- bind_cols(basic_design, x_basic) %>%
   pivot_longer(-c("id", "treatment", "subject"), names_to = "feature")
 ```
 
@@ -163,21 +164,18 @@ Now we'll write a small program to estimate the posterior on betas.
 model <- cmdstan_model("multinomial_logistic.stan")
 inputs <- list(
   N = N,
-  D = ncol(x),
+  D = ncol(x_blocked),
   T = nrow(effects$treatment),
   S = n_distinct(blocked_design, "subject"),
   t_ix = as.integer(blocked_design$treatment),
   s_ix = blocked_design$subject,
-  x = as.matrix(x)
+  x = as.matrix(x_blocked)
 )
 
-fit <- model$variational(data = inputs)
+fit <- model$sample(data = inputs, chains = 1)
 ```
 
 ```{r}
-library(tidybayes)
-library(posterior)
-
 treatment_estimates <- tidy_draws(fit) %>%
  select(`.chain`, `.iteration`, starts_with("treatment")) %>%
   pivot_longer(starts_with("treatment"), names_to = "coef") %>%
@@ -189,8 +187,15 @@ treatment_estimates <- tidy_draws(fit) %>%
 ```
 
 ```{r}
-ggplot(treatment_estimates %>% filter(feature < 20)) +
-  stat_interval(aes(y = as.factor(treatment), x = value)) +
-  facet_wrap(~ feature)
-```
+truth <- effects$treatment %>%
+  as.data.frame() %>%
+  mutate(treatment = 1:n()) %>%
+  pivot_longer(-treatment, names_to = "feature") %>%
+  mutate(feature = as.integer(str_remove(feature, "V")))
 
+ggplot(treatment_estimates, aes(x = feature, y = value, col = as.factor(treatment))) +
+  stat_dots() +
+  geom_point(data = truth, size = 1.6, col = "#0c0c0c") +
+  geom_point(data = truth, size = 0.8) +
+  scale_color_brewer(palette = "Set2")
+```
