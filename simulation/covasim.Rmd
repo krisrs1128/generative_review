@@ -118,10 +118,6 @@ for symp_prob in np.linspace(0.1, .9, 5):
 ```
 
 ```{r}
-
-```
-
-```{r}
 results <- bind_rows(py$results)
 ggplot(results) +
   geom_point(
@@ -133,7 +129,13 @@ ggplot(results) +
   scale_y_log10()
 ```
 
-```{r}
+Can we use a surrogate to evaluate the mean number of infections over time for
+testing probabilities between those that we directly simulated? We'll focus on
+just on of the trace probabilities / time combinations. There's a bit of extra
+work here because the package doesn't know how to deal with different GP kernel
+scales for different dimensions, so we rescale everything to the 0-1 interval.
+
+```{r, message = FALSE}
 xy <- results %>%
   filter(trace_prob == 0.1, trace_time == 1)
 x <- xy %>%
@@ -161,4 +163,3 @@ ggplot(y_hat_df) +
   geom_smooth(aes(t, exp(y_hat) - 1, col = symp_prob, group = symp_prob), size = .5, se = F, span = 1) +
   scale_color_scico(palette = "batlow")
 ```
-
