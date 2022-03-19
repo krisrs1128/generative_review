@@ -39,8 +39,8 @@ nlobj@experiment <- experiment(
   tickmetrics = "true",
   idsetup ="setup",
   idgo ="go",
-  runtime = 150,
-  evalticks = seq_len(150),
+  runtime = 250,
+  evalticks = seq_len(250),
   variables = list(
     "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
     ),
@@ -72,24 +72,53 @@ mutation_model <- function(nlobj) {
       group_by(breed, `[step]`) %>%
       summarise(mean = mean(color)) %>%
       pivot_wider(names_from = "breed", values_from = "mean") %>%
-      mutate(diff = viceroys - monarchs)
+      mutate(
+        diff = viceroys - monarchs,
+        step_bin = cut(`[step]`, 4)
+      )
     
-    coef(lm(diff ~ bs(`[step]`, df = 3), data = color_stats))[-1]
+    color_stats %>%
+      group_by(step_bin) %>%
+      summarise(bin_diff = mean(diff)) %>%
+      pull(bin_diff)
   }
 }
 
 prior <- list(c("unif", 1, 99))
 m <- mutation_model(nlobj)
 test_stat <- m(30) # want to "discover" that mutation rate is 30
-ABC_sequential(
+abc_result <- ABC_sequential(
   method = "Delmoral", 
   model = m, 
   prior = prior, 
-  nb_simul = 5, 
+  nb_simul = 20,
   summary_stat_target = test_stat, 
-  tolerance = 5, 
+  tolerance = 15, 
   progress = TRUE, 
   n_cluster = 2, 
-  use_seed = TRUE
+  use_seed = FALSE,
+  verbose = TRUE
 )
+```
+```{r}
+abc_df <- data.frame(
+  param = abc_result$param,
+  stat = abc_result$stats,
+  dist = sqrt(rowMeans((abc_result$stats - matrix(rep(1, nrow(abc_result$stats))) %*% test_stat) ^ 2))
+)
+  
+ggplot(abc_df) +
+  geom_point(aes(param, stat.1))
+ggplot(abc_df) +
+  geom_point(aes(param, stat.2))
+ggplot(abc_df) +
+  geom_point(aes(param, stat.3))
+ggplot(abc_df) +
+  geom_point(aes(param, stat.4))
+
+ggplot(abc_df) +
+  geom_point(aes(param, dist))
+  
+ggplot(abc_df) +
+  geom_histogram(aes(param))
 ```

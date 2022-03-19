@@ -8,6 +8,7 @@ library(EasyABC)
 library(splines)
 library(nlrx)
 library(tidyverse)
+library(broom)
 th <- theme_minimal() + 
   theme(
     panel.grid.minor = element_blank(),
@@ -39,8 +40,8 @@ nlobj@experiment <- experiment(
   tickmetrics = "true",
   idsetup ="setup",
   idgo ="go",
-  runtime = 400,
-  evalticks = seq_len(400),
+  runtime = 250,
+  evalticks = seq_len(250),
   variables = list(
     "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
     ),
@@ -86,21 +87,21 @@ ggplot(
 color_diff <- color_stats %>%
   select(breed, siminputrow, `mutation-rate`, `[step]`, breed, mean) %>%
   pivot_wider(names_from = "breed", values_from = "mean") %>%
-  mutate(diff = viceroys - monarchs)
+  mutate(
+    diff = viceroys - monarchs,
+    step_bin = cut(`[step]`, 4)
+  )
 
 ggplot(color_diff) +
   geom_line(aes(`[step]`, diff, col = `mutation-rate`, group = siminputrow))
 ```
 ```{r}
-library(broom)
 summary_stats <- color_diff %>%
-  split(.$siminputrow) %>%
-  map_dfr(~ tidy(lm(diff ~ bs(`[step]`, df = 3), data = .)), .id = "siminputrow") %>%
-  mutate(siminputrow = as.integer(siminputrow)) %>%
-  left_join(color_diff %>% select(siminputrow, `mutation-rate`) %>% unique())
+  group_by(siminputrow, `mutation-rate`, step_bin) %>%
+  summarise(bin_diff = mean(diff))
 
 ggplot(summary_stats) +
-  geom_point(aes(`mutation-rate`, estimate)) +
-  facet_wrap(~ term)
+  geom_point(aes(`mutation-rate`, bin_diff)) +
+  facet_wrap(~ step_bin)
 ```
 
