@@ -10,7 +10,7 @@ multinomial_logistic <- function(x, design, model_path=NULL) {
   inputs <- list(
     N = nrow(x),
     D = ncol(x),
-    T = n_distinct(design, "treatment"),
+    T = nlevels(design$treatment),
     S = n_distinct(design, "subject"),
     t_ix = as.integer(design$treatment),
     s_ix = design$subject,

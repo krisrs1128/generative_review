@@ -2,8 +2,10 @@
 title: "Blocking Example"
 output: html_notebook
 ---
-```{r}
+
+```{r, message = FALSE}
 library(tidyverse)
+library(tidybayes)
 library(generative)
 review_theme()
 ```
@@ -62,7 +64,7 @@ plot_treatments(x_df)
 
 Now we'll write a small program to estimate the posterior on betas.
 
-```{r}
+```{r, messgae = FALSE}
 fit <- multinomial_logistic(x_blocked, designs$blocked)
 treatment_estimates <- list()
 treatment_estimates[["blocked"]] <- process_estimate(fit, "treatment")
@@ -80,7 +82,28 @@ ggplot(comparison) +
   geom_point(aes(value, posterior_mean))
 ```
 
+```{r, message = FALSE}
+fit <- multinomial_logistic(x_basic, designs$basic)
+treatment_estimates[["basic"]] <- process_estimate(fit, "treatment")
+```
 ```{r}
-fit_basic <- multinomial_logistic(x_basic, designs$basic)
-treatment_estimates[["basic"]] <- process_estimate(fit_basic, "treatment")
+bind_rows(treatment_estimates, .id = "design") %>%
+  ggplot(aes(feature, value, col = as.factor(treatment))) +
+  stat_dots() +
+  scale_color_brewer(palette = "Set2") +
+  geom_point(data = truth, size = 1.6, col = "#0c0c0c") +
+  geom_point(data = truth, size = 0.8) +
+  facet_grid(design ~ .)
+```
+
+The relative efficiency of the blocked vs. unblocked estimator (for this setting
+of $N$, $\sigma^2_{\text{treatment}}$, $\sigma^2_{\text{subject}}$) is about
+1.35.
+
+```{r}
+bind_rows(treatment_estimates, .id = "design") %>%
+  group_by(design, feature, treatment) %>%
+  summarise(sd = sd(value)) %>%
+  group_by(design) %>%
+  summarise(mean(sd))
 ```
