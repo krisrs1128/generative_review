@@ -1,6 +1,6 @@
 ---
 title: "R Notebook"
-output: pdf_document
+output: html_notebook
 ---
 
 ```{r, message = FALSE}
@@ -31,9 +31,9 @@ abc_result <- ABC_sequential(
   method = "Delmoral", 
   model = m, 
   prior = list(c("unif", 1, 99)), 
-  nb_simul = 20,
+  nb_simul = 250,
   summary_stat_target = test_stat, 
-  tolerance = 8,
+  tolerance = 5,
   verbose = TRUE,
   progress_bar = TRUE
 )
@@ -44,12 +44,8 @@ plot(abc_result$param, abc_result$weights)
 ```
 
 ```{r}
-d <- density(abc_result$param, weights = abc_result$weights, bw = 5)
+d <- density(abc_result$param, weights = abc_result$weights, bw = 3)
 plot(d)
-```
-```{r}
-m(50)
-m(89)
 ```
 
 ```{r}
