@@ -121,3 +121,30 @@ spline_mse <- function(u, times, pf) {
   f_hat <- predict(fit, newdata = data.frame(u = times))
   mean((f_hat - pf(times)) ^ 2)
 }
+
+#' @export
+make_intervals <- function(length.out, start = -10, end = 10) {
+  u <- seq(start, end, length.out = length.out + 1)
+  cbind(head(u, -1), tail(u, -1))
+}
+
+#' @export
+evaluate_weights <- function(beta, intervals, times, pf, N = 40, n_rep = 20) {
+  w <- exp(beta) / sum(exp(beta))
+  mse <- vector(length = n_rep)
+  for (i in seq_along(mse)) {
+    u <- weighted_sampling(N, intervals, w)
+    mse[i] <- spline_mse(u, times, pf)
+  }
+  
+  median(mse)
+}
+
+rescale <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+#' @export
+scale_list <- function(x) {
+  rescale(do.call(rbind, x))
+}
