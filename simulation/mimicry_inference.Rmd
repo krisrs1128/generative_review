@@ -28,16 +28,23 @@ nlobj@experiment <- setup_experiment(175)
 m <- mutation_model(nlobj)
 test_stat <- m(90) # want to "discover" that mutation rate is 90
 abc_result <- ABC_sequential(
-  method = "Delmoral", 
+  method = "Beaumont", 
   model = m, 
   prior = list(c("unif", 1, 99)), 
-  nb_simul = 1000,
+  nb_simul = 50,
   summary_stat_target = test_stat, 
-  tolerance = 15,
+  tolerance_tab = c(100, 50, 10),
   verbose = TRUE,
   progress_bar = TRUE
 )
 ```
+
+
+```{r}
+d <- density(abc_result$param, weights = abc_result$weights)
+plot(d)
+```
+
 ```{r}
 abc_df <- data.frame(
   param = abc_result$param,
@@ -55,9 +62,4 @@ ggplot(abc_df) +
   geom_point(aes(param, stat.4))
 ggplot(abc_df) +
   geom_point(aes(param, dist))
-  
-ggplot(abc_df) +
-  scale_y_continuous(expand = c(0, 0, 0, 0.9)) +
-  geom_histogram(aes(param), binwidth = 5) +
-  geom_vline(xintercept = 30, col = "red")
 ```

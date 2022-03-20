@@ -40,6 +40,7 @@ compromise_design <- function(N, n_treat = 3, n_per_subject = 2) {
   ungroup()
 }
 
+#' @importFrom tibble as_tibble
 #' @export
 simulate <- function(design, effects, depth = 500) {
   features <- ncol(effects$treatment)
@@ -70,6 +71,7 @@ design_effects <- function(subjects, treatments, features,  sigmas = c(2, 0.5),
   effects
 }
 
+#' @importFrom dplyr n_distinct
 #' @export
 probabilities <- function(design, effects) {
   features <- ncol(effects$treatment)
@@ -83,4 +85,39 @@ probabilities <- function(design, effects) {
   }
   
   exp(p) / rowSums(exp(p))
+}
+
+#' @export
+weighted_sampling <- function(N, intervals, weights) {
+  samples <- list()
+  interval_ix <- rmultinom(1, N, weights)
+  for (i in seq_along(interval_ix)) {
+    samples[[i]] <- runif(interval_ix[i], intervals[i, 1], intervals[i, 2])
+  }
+  
+  unlist(samples)  
+}
+
+#' @export
+peak_fun <- function(times, peak_loc, height, end) {
+  mu <- rep(0, length(times))
+  rise <- peak_loc > times & times >= 0
+  mu[rise] <- seq(0, height, length.out = sum(rise))
+  fall <- times >= peak_loc & times < end
+  mu[fall] <- seq(height, 0, length.out = sum(fall))
+  approxfun(times, mu)
+}
+
+#' @export
+gaussian_noise <- function(mean_fun, x, sigma = 1) {
+  mean_fun(x) + rnorm(length(x), 0, sigma)
+}
+
+#' @importFrom splines bs
+#' @export
+spline_mse <- function(u, times, pf) {
+  y <- gaussian_noise(pf, u)
+  fit <- lm(y ~ bs(u, df = 6, degree = 1, Boundary.knots = c(-10, 10)))
+  f_hat <- predict(fit, newdata = data.frame(u = times))
+  mean((f_hat - pf(times)) ^ 2)
 }
