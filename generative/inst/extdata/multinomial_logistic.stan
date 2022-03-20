@@ -16,10 +16,10 @@ parameters {
 
 model {
   for (t in 1:T) {
-    treatment[t] ~ normal(0, 2);
+    treatment[t] ~ normal(0, .5);
   }
   for (s in 1:S) {
-    subject[s] ~ normal(0, 1);
+    subject[s] ~ normal(0, 2);
   }
   
   for (n in 1:N) {
