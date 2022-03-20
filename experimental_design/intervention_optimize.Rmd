@@ -1,0 +1,63 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r, message = FALSE}
+library(tidyverse)
+library(laGP)
+library(purrr)
+library(generative)
+set.seed(123)
+```
+
+```{r}
+n_init <- 100
+n_interval <- 10
+intervals <- make_intervals(n_interval)
+times <- seq(-10, 10, length.out = 200)
+pf <- peak_fun(times, 1, 10, 5)
+
+# initial sample of weights
+betas <- rerun(n_init, rnorm(n_interval, 0, 1))
+losses <- map_dbl(betas, ~ evaluate_weights(., intervals, times, pf))
+```
+
+We compute the main bayesian optimization loop below.
+
+```{r, message = FALSE}
+n_test <- 1000
+n_add <- 20
+n_iters <- 30
+
+for (i in seq_len(n_iters)) {
+  
+  # fit a GP to the betas / losses already computed
+  beta_norm <- scale_list(betas)
+  beta_test <- rerun(n_test, runif(n_interval, -4, 4))
+  
+  # find most promising new test points
+  y_hat <- aGP(beta_norm, losses, scale_list(beta_test), verb = 0)
+  sort_ix <- order(y_hat$mean - y_hat$var)
+  
+  # evaluate loss on new test points
+  new_betas <- beta_test[sort_ix][1:n_add]
+  betas <- c(betas, new_betas)
+  losses <- c(
+    losses, 
+    map_dbl(new_betas, ~ evaluate_weights(., intervals, times, pf))
+  )
+}
+```
+Here are some of the weightings that we should use for longitudinal sampling.
+They generally favor more samples in the region where the peak is located.
+
+```{r}
+hist(losses)
+best_ix <- order(losses)[1:10]
+for (i in seq_along(best_ix)) {
+  w <- exp(betas[[best_ix[i]]])
+  plot(w / sum(w))
+  title(round(losses[best_ix[i]], 3))
+}
+```
