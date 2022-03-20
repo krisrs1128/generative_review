@@ -3,51 +3,19 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-```{r}
+```{r, message = FALSE}
 library(tidyverse)
 library(splines)
-th <- theme_minimal() + 
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "#f7f7f7"),
-    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
-    axis.text = element_text(size = 11),
-    axis.title = element_text(size = 13),
-    legend.position = "bottom"
-  )
-theme_set(th)
-set.seed(1234)
+library(generative)
+set.seed(123)
 ```
 
 ```{r}
-mean_fun <- function(times, peak_loc, height, end) {
-  mu <- rep(0, length(times))
-  rise <- peak_loc > times & times >= 0
-  mu[rise] <- seq(0, height, length.out = sum(rise))
-  fall <- times >= peak_loc & times < end
-  mu[fall] <- seq(height, 0, length.out = sum(fall))
-  approxfun(times, mu)
-}
-
-weighted_sampling <- function(N, intervals, weights) {
-  samples <- list()
-  interval_ix <- rmultinom(1, N, weights)
-  for (i in seq_along(interval_ix)) {
-    samples[[i]] <- runif(interval_ix[i], intervals[i, 1], intervals[i, 2])
-  }
-   
-  unlist(samples)  
-}
-
-observations <- function(mean_fun, x, sigma = 1) {
-  mean_fun(x) + rnorm(length(x), 0, sigma)
-}
-
 times <- seq(-10, 10, length.out = 200)
-mf <- mean_fun(times, 1, 10, 5)
-plot(times, mf(times), type = "l")
+pf <- peak_fun(times, 1, 10, 5)
+plot(times, pf(times), type = "l")
 u <- runif(20, -10, 10)
-points(u, observations(mf, u))
+points(u, gaussian_noise(pf, u))
 ```
 
 ```{r}
@@ -74,9 +42,9 @@ w <- c(1, 1, 1, 1, 3, 4, 3, 1, 1)
 w <- w / sum(w)
 
 u <- weighted_sampling(40, intervals, w)
-y <- observations(mf, u)
+y <- gaussian_noise(pf, u)
 fit <- lm(y ~ bs(u, df = 6, degree = 1, Boundary.knots = c(-10, 10)))
-plot(times, mf(times), type = "l")
+plot(times, pf(times), type = "l")
 points(u, y, col = "red")
 points(u, predict(fit), col = "blue")
 f_hat <- predict(fit, newdata = data.frame(u = times))
@@ -86,21 +54,12 @@ points(times, f_hat, col = "blue")
 ```{r}
 B <- 1e3
 mse <- matrix(nrow = B, ncol = 2)
-
-estimate_mse <- function(u, times, mf) {
-  y <- observations(mf, u)
-  fit <- lm(y ~ bs(u, df = 6, degree = 1, Boundary.knots = c(-10, 10)))
-  f_hat <- predict(fit, newdata = data.frame(u = times))
-  mean((f_hat - mf(times)) ^ 2)
-}
-
-
 for (b in seq_len(B)) {
   # random u's
   u <- runif(50, -10, 10)
-  mse[b, 1] <- estimate_mse(u, times, mf)
+  mse[b, 1] <- spline_mse(u, times, pf)
   u <- weighted_sampling(50, intervals, w)
-  mse[b, 2] <- estimate_mse(u, times, mf)
+  mse[b, 2] <- spline_mse(u, times, pf)
 }
 
 colnames(mse) <- c("uniform", "weighted")
