@@ -3,13 +3,15 @@ title: "R Notebook"
 output: pdf_document
 ---
 
-```{r}
+```{r, message = FALSE}
 library(EasyABC)
 library(nlrx)
 library(tidyverse)
 library(generative)
 review_theme()
+```
 
+```{r, message = FALSE}
 dir.create("nl")
 #download_netlogo("nl/", "6.1.0") # have to manually install
 
@@ -22,14 +24,14 @@ nlobj <- nl(
 ```
 
 ```{r}
-nlobj@experiment <- setup_experiment(250)
+nlobj@experiment <- setup_experiment(175)
 m <- mutation_model(nlobj)
-test_stat <- m(30) # want to "discover" that mutation rate is 30
+test_stat <- m(90) # want to "discover" that mutation rate is 90
 abc_result <- ABC_sequential(
   method = "Delmoral", 
   model = m, 
   prior = list(c("unif", 1, 99)), 
-  nb_simul = 200,
+  nb_simul = 1000,
   summary_stat_target = test_stat, 
   tolerance = 15,
   verbose = TRUE,
@@ -55,5 +57,7 @@ ggplot(abc_df) +
   geom_point(aes(param, dist))
   
 ggplot(abc_df) +
-  geom_histogram(aes(param))
+  scale_y_continuous(expand = c(0, 0, 0, 0.9)) +
+  geom_histogram(aes(param), binwidth = 5) +
+  geom_vline(xintercept = 30, col = "red")
 ```
