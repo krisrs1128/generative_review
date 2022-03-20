@@ -26,7 +26,7 @@ setup_experiment <- function(runtime = 250) {
 #' @importFrom nlrx run_nl_one simdesign_lhs
 #' @importFrom magrittr %>%
 #' @export
-mutation_model <- function(seed, nlobj) {
+mutation_model <- function(nlobj) {
   function(rate) {
     library(tidyverse)
     nlobj@experiment@variables <- list(
@@ -34,16 +34,14 @@ mutation_model <- function(seed, nlobj) {
     )
     nlobj@simdesign <- simdesign_lhs(nlobj, samples = 1, nseeds = 1)
     
-    nl_obj %>%
+    nlobj %>%
       run_nl_one(seed = 1, siminputrow = 1) %>%
       summary_statistics()
   }
 }
   
-  
-#' @importFrom dplyr select starts_with unnest group_by filter summarise mutate
-#'   pull
-#' @importFrom tidyr pivot_wider
+#' @importFrom dplyr select starts_with group_by filter summarise mutate pull
+#' @importFrom tidyr pivot_wider unnest
 #' @export
 summary_statistics <- function(nl_results) {
   color_stats <- nl_results %>%
