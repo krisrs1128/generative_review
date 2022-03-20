@@ -23,7 +23,7 @@ nlobj <- nl(
 
 ```{r}
 nlobj@experiment <- setup_experiment(250)
-m <- mutation_model(1, nlobj)
+m <- mutation_model(nlobj)
 test_stat <- m(30) # want to "discover" that mutation rate is 30
 abc_result <- ABC_sequential(
   method = "Delmoral", 
@@ -32,9 +32,8 @@ abc_result <- ABC_sequential(
   nb_simul = 200,
   summary_stat_target = test_stat, 
   tolerance = 15,
-  n_cluster = 4,
-  use_seed = TRUE,
-  verbose = TRUE
+  verbose = TRUE,
+  progress_bar = TRUE
 )
 ```
 ```{r}

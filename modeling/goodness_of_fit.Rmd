@@ -3,12 +3,8 @@ title: "Heteroskedastic Mixtures"
 output: html_notebook
 ---
 ```{r, message = FALSE}
-library(MCMCpack)
 library(tidyverse)
-library(cmdstanr)
 library(caret)
-library(mvtnorm)
-library(tidybayes)
 library(scico)
 library(generative)
 review_theme()
@@ -24,26 +20,8 @@ set.seed(0318022)
 * Fit true model
 * Repeat discrimination
 
-
 ```{r}
-simulate <- function(N, K = 5, df = 8) {
-  pi <- rdirichlet(1, rep(2, K))
-  Ns <- rmultinom(1, N, prob = pi)
-  deltas <- matrix(rnorm(K * 2, 0, 5), K, 2)
-  sigmas <- map(1:K, ~ diag(rgamma(2, 5, 5)))
-  x <- list()
-  for (k in seq_len(K)) {
-    x[[k]] <- rmvt(Ns[k], sigmas[[k]], df = df, delta = deltas[k, ], type = "shifted")
-  }
-  
-  x
-}
-
-x <- simulate(250) %>%
-  map_dfr(~ as_tibble(.), .id = "k")
-```
-
-```{r}
+x <- t_mixture(250)
 ggplot(x) +
   geom_point(aes(V1, V2, col = k)) +
   scale_color_brewer(palette = "Set2") +
@@ -51,61 +29,21 @@ ggplot(x) +
 ```
 
 ```{r}
-model <- cmdstan_model("gmm.stan")
-input <- list(
-  K = 5,
-  N = nrow(x),
-  x = x %>% select(-k)
-)
-
-fit <- model$variational(input)
-```
-
-```{r}
-x_sim <- tidy_draws(fit) %>%
-  filter(.iteration < 10) %>%
-  select(.iteration, .chain, starts_with("x_sim")) %>%
-  pivot_longer(starts_with("x_sim")) %>%
-  mutate(
-    i = str_extract(name, "[0-9]+"),
-    j = str_extract(name, "[0-9]\\]$"),
-    j = str_remove(j, "]")
-  ) %>%
-  select(-name) %>%
-  pivot_wider(names_from = "j", values_from = "value")
-  
-```
-
-```{r}
+fit <- fit_gmm(x, K = 5)
+x_sim <- mixture_predictive(fit)
 ggplot(x_sim) +
   geom_point(aes(`1`, `2`), size = 0.5, alpha = 0.8) +
   facet_wrap(~ .iteration) +
-  xlim(-10, 10) +
-  ylim(-10, 10) +
   coord_fixed()
 ```
 
-
 ```{r}
-disc_data <- bind_rows(
-  x %>%
-    select(-k) %>%
-    mutate(y = "true"),
-  x_sim %>%
-    filter(.iteration == 1) %>%
-    select(`1`, `2`) %>%
-    rename(V1 = `1`, V2 = `2`) %>%
-    mutate(y = "simulated")
-)
-```
-
-```{r}
+disc_data <- bind_dicriminative(x, x_sim)
 ggplot(disc_data) +
   geom_point(aes(V1, V2, col = y), alpha = 1, size = 0.9) +
   scale_color_scico_d(palette = "berlin") +
   coord_fixed()
 ```
-
 
 ```{r, message = FALSE}
 gbmGrid <-  expand.grid(
@@ -119,77 +57,48 @@ fit <- train(
   x = disc_data %>% select(-y), 
   y = disc_data$y, 
   method = "gbm",
-  verbose = FALSE,
   tuneGrid = gbmGrid
 )
 ```
+
 ```{r}
 table(disc_data$y, predict(fit))
 ```
 
 ```{r}
-x_grid <- seq(-10, 10, length.out = 100)
-x_grid <- expand.grid(x_grid, x_grid) %>%
-  as_tibble() %>%
-  rename(V1 = Var1, V2 = Var2)
-p_hat <- predict(fit, newdata = x_grid, type = "prob") %>%
-  bind_cols(x_grid)
-```
-
-```{r}
-ggplot(p_hat) +
-  geom_tile(aes(V1, V2, fill = true, col = true)) +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0)) +
+data.frame(prob = predict(fit, disc_data, type = "prob")) %>%
+  bind_cols(disc_data) %>%
+  ggplot() +
+  geom_point(aes(V1, V2, col = prob.true)) +
   scale_color_scico(palette = "berlin") +
-  scale_fill_scico(palette = "berlin") +
+  facet_wrap(~ y) +
   coord_fixed()
 ```
 
 ```{r}
-model <- cmdstan_model("tmm.stan")
-input$alpha <- rep(2, 5)
-fit <- model$variational(input)
-```
-
-```{r}
-x_sim <- tidy_draws(fit) %>%
-  filter(.iteration < 10) %>%
-  select(.iteration, .chain, starts_with("x_sim")) %>%
-  pivot_longer(starts_with("x_sim")) %>%
-  mutate(
-    i = str_extract(name, "[0-9]+"),
-    j = str_extract(name, "[0-9]\\]$"),
-    j = str_remove(j, "]")
-  ) %>%
-  select(-name) %>%
-  pivot_wider(names_from = "j", values_from = "value")
-
+fit <- fit_tmm(x, K = 5)
+x_sim <- mixture_predictive(fit)
 ggplot(x_sim) +
   geom_point(aes(`1`, `2`), size = 0.5, alpha = 0.8) +
   facet_wrap(~ .iteration) +
-  xlim(-10, 10) +
-  ylim(-10, 10) +
   coord_fixed()
 ```
 
-
 ```{r}
-disc_data <- bind_rows(
-  x %>%
-    select(-k) %>%
-    mutate(y = "true"),
-  x_sim %>%
-    filter(.iteration == 1) %>%
-    select(`1`, `2`) %>%
-    rename(V1 = `1`, V2 = `2`) %>%
-    mutate(y = "simulated")
-)
-
+disc_data <- bind_dicriminative(x, x_sim)
 ggplot(disc_data) +
   geom_point(aes(V1, V2, col = y), alpha = 1, size = 0.9) +
   scale_color_scico_d(palette = "berlin") +
-  xlim(-10, 10) +
-  ylim(-10, 10) +
   coord_fixed()
+```
+
+```{r, message = FALSE}
+disc_data <- bind_dicriminative(x, x_sim)
+fit <- train(
+  x = disc_data %>% select(-y), 
+  y = disc_data$y, 
+  method = "gbm",
+  tuneGrid = gbmGrid
+)
+table(disc_data$y, predict(fit))
 ```
