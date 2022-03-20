@@ -10,16 +10,8 @@ library(caret)
 library(mvtnorm)
 library(tidybayes)
 library(scico)
-th <- theme_minimal() + 
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "#f7f7f7"),
-    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
-    axis.text = element_text(size = 11),
-    axis.title = element_text(size = 13),
-    legend.position = "bottom"
-  )
-theme_set(th)
+library(generative)
+review_theme()
 set.seed(0318022)
 ```
 

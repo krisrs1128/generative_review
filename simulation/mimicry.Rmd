@@ -4,21 +4,8 @@ output: pdf_document
 ---
 
 ```{r}
-library(EasyABC)
-library(splines)
 library(nlrx)
 library(tidyverse)
-library(broom)
-th <- theme_minimal() + 
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "#f7f7f7"),
-    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
-    axis.text = element_text(size = 11),
-    axis.title = element_text(size = 13),
-    legend.position = "bottom"
-  )
-theme_set(th)
 
 dir.create("nl")
 #download_netlogo("nl/", "6.1.0") # have to manually install
@@ -32,43 +19,16 @@ nlobj <- nl(
 ```
 
 ```{r}
-dir.create("mimcry_results")
-nlobj@experiment <- experiment(
-  expname = "mimcry",
-  outpath = "./mimcry_results/",
-  repetition = 1,
-  tickmetrics = "true",
-  idsetup ="setup",
-  idgo ="go",
-  runtime = 250,
-  evalticks = seq_len(250),
-  variables = list(
-    "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
-    ),
-  constants = list(
-    "memory-duration" = 30,
-    "memory-size" = 3
-  ),
-  metrics.turtles = list("turtles" = c("color")),
-  metrics = c("count monarchs", "count viceroys")
-)
-```
-
-```{r}
+nlobj@experiment <- setup_experiment()
 nlobj@simdesign <- simdesign_lhs(nlobj, samples = 10, nseeds = 1)
 results <- run_nl_all(nlobj)
 ```
 
 ```{r}
-color_shift <- results %>%
+color_stats <- results %>%
   select(siminputrow, `mutation-rate`, `[step]`, starts_with("count"), metrics.turtles) %>%
   unnest(metrics.turtles) %>%
-  filter(breed != "birds")
-```
-
-
-```{r}
-color_stats <- color_shift %>%
+  filter(breed != "birds") %>%
   group_by(breed, siminputrow, `mutation-rate`, `[step]`) %>%
   summarise(
     mean = mean(color),
@@ -104,4 +64,3 @@ ggplot(summary_stats) +
   geom_point(aes(`mutation-rate`, bin_diff)) +
   facet_wrap(~ step_bin)
 ```
-

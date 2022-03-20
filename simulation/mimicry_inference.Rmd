@@ -5,20 +5,10 @@ output: pdf_document
 
 ```{r}
 library(EasyABC)
-library(splines)
 library(nlrx)
 library(tidyverse)
-library(broom)
-th <- theme_minimal() + 
-  theme(
-    panel.grid.minor = element_blank(),
-    panel.background = element_rect(fill = "#f7f7f7"),
-    panel.border = element_rect(fill = NA, color = "#0c0c0c", size = 0.6),
-    axis.text = element_text(size = 11),
-    axis.title = element_text(size = 13),
-    legend.position = "bottom"
-  )
-theme_set(th)
+library(generative)
+review_theme()
 
 dir.create("nl")
 #download_netlogo("nl/", "6.1.0") # have to manually install
@@ -32,71 +22,18 @@ nlobj <- nl(
 ```
 
 ```{r}
-nlobj@experiment <- experiment(
-  expname = "mimcry",
-  outpath = "./mimcry_results/",
-  repetition = 1,
-  tickmetrics = "true",
-  idsetup ="setup",
-  idgo ="go",
-  runtime = 250,
-  evalticks = seq_len(250),
-  variables = list(
-    "mutation-rate" = list(min = 1, max = 99, qfun = "qunif")
-    ),
-  constants = list(
-    "memory-duration" = 30,
-    "memory-size" = 3
-  ),
-  metrics.turtles = list("turtles" = c("color")),
-  metrics = c("count monarchs", "count viceroys")
-)
-```
-
-```{r}
-mutation_model <- function(nlobj) {
-  function(rate) {
-    library(tidyverse)
-    library(splines)
-    
-    nlobj@experiment@variables <- list(
-      "mutation-rate" = list(min = rate - 1, max = rate + 1, qfun = "qunif")
-      )
-    nlobj@simdesign <- simdesign_lhs(nlobj, samples = 1, nseeds = 1)
-    results <- run_nl_one(nlobj, seed = 1, siminputrow = 1)
-    
-    color_stats <- results %>%
-      select(`[step]`, starts_with("count"), metrics.turtles) %>%
-      unnest(metrics.turtles) %>%
-      filter(breed != "birds") %>%
-      group_by(breed, `[step]`) %>%
-      summarise(mean = mean(color)) %>%
-      pivot_wider(names_from = "breed", values_from = "mean") %>%
-      mutate(
-        diff = viceroys - monarchs,
-        step_bin = cut(`[step]`, 4)
-      )
-    
-    color_stats %>%
-      group_by(step_bin) %>%
-      summarise(bin_diff = mean(diff)) %>%
-      pull(bin_diff)
-  }
-}
-
-prior <- list(c("unif", 1, 99))
-m <- mutation_model(nlobj)
+nlobj@experiment <- setup_experiment(250)
+m <- mutation_model(1, nlobj)
 test_stat <- m(30) # want to "discover" that mutation rate is 30
 abc_result <- ABC_sequential(
   method = "Delmoral", 
   model = m, 
-  prior = prior, 
-  nb_simul = 20,
+  prior = list(c("unif", 1, 99)), 
+  nb_simul = 200,
   summary_stat_target = test_stat, 
-  tolerance = 15, 
-  progress = TRUE, 
-  n_cluster = 2, 
-  use_seed = FALSE,
+  tolerance = 15,
+  n_cluster = 4,
+  use_seed = TRUE,
   verbose = TRUE
 )
 ```
@@ -115,7 +52,6 @@ ggplot(abc_df) +
   geom_point(aes(param, stat.3))
 ggplot(abc_df) +
   geom_point(aes(param, stat.4))
-
 ggplot(abc_df) +
   geom_point(aes(param, dist))
   
