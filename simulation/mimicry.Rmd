@@ -6,6 +6,7 @@ output: pdf_document
 ```{r}
 library(nlrx)
 library(tidyverse)
+library(generative)
 
 dir.create("nl")
 #download_netlogo("nl/", "6.1.0") # have to manually install
@@ -19,7 +20,7 @@ nlobj <- nl(
 ```
 
 ```{r}
-nlobj@experiment <- setup_experiment()
+nlobj@experiment <- setup_experiment(175)
 nlobj@simdesign <- simdesign_lhs(nlobj, samples = 10, nseeds = 1)
 results <- run_nl_all(nlobj)
 ```
@@ -41,7 +42,8 @@ ggplot(
   ) +
   geom_ribbon(aes(`[step]`, ymin = mean - 1.9 * sd, ymax = mean + 1.9 * sd), alpha = 0.3) +
   geom_line(aes(`[step]`, mean)) +
-  facet_wrap(~ reorder(siminputrow, `mutation-rate`))
+  scale_color_manual(values = c("#F2955E", "#CBC5D9")) +
+  facet_wrap(~ reorder(`mutation-rate`, `mutation-rate`))
 ```
 ```{r}
 color_diff <- color_stats %>%

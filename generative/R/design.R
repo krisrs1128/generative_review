@@ -129,7 +129,7 @@ make_intervals <- function(length.out, start = -10, end = 10) {
 }
 
 #' @export
-evaluate_weights <- function(beta, intervals, times, pf, N = 40, n_rep = 20) {
+evaluate_weights <- function(beta, intervals, times, pf, N = 15, n_rep = 25) {
   w <- exp(beta) / sum(exp(beta))
   mse <- vector(length = n_rep)
   for (i in seq_along(mse)) {

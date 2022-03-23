@@ -88,12 +88,16 @@ treatment_estimates[["basic"]] <- process_estimate(fit, "treatment")
 ```
 ```{r}
 bind_rows(treatment_estimates, .id = "design") %>%
+  mutate(design = fct_recode(design, unblocked = "basic")) %>%
   ggplot(aes(feature, value, col = as.factor(treatment))) +
   stat_dots() +
   scale_color_brewer(palette = "Set2") +
   geom_point(data = truth, size = 1.6, col = "#0c0c0c") +
   geom_point(data = truth, size = 0.8) +
+  labs(x = "Taxon", y = "Effect", col = "Treatment") +
   facet_grid(design ~ .)
+
+ggsave("~/Downloads/blocking_counts.png", dpi = 500, height = 4, width = 7)
 ```
 
 The relative efficiency of the blocked vs. unblocked estimator (for this setting

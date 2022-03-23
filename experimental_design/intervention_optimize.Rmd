@@ -26,7 +26,7 @@ losses <- map_dbl(betas, ~ evaluate_weights(., intervals, times, pf))
 We compute the main bayesian optimization loop below.
 
 ```{r, message = FALSE}
-n_test <- 1000
+n_test <- 500
 n_add <- 20
 n_iters <- 30
 
@@ -45,7 +45,7 @@ for (i in seq_len(n_iters)) {
   betas <- c(betas, new_betas)
   losses <- c(
     losses, 
-    map_dbl(new_betas, ~ evaluate_weights(., intervals, times, pf))
+    map_dbl(new_betas, ~ evaluate_weights(., intervals, times, pf, N = 15))
   )
 }
 ```
