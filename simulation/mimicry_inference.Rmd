@@ -66,3 +66,19 @@ ggplot(abc_df) +
 ggplot(abc_df) +
   geom_point(aes(param, dist))
 ```
+
+```{r}
+save.image("mimicry_inference.RData")
+```
+
+```{r, fig.width = 3, fig.height = 1.2}
+d <- density(abc_result$param, weights = abc_result$weights, bw = 4.5)
+data.frame(mutation_rate = d$x, density = d$y) %>%
+  ggplot() +
+  geom_ribbon(aes(mutation_rate, ymin = 0, ymax = density), fill = "#2B3440") +
+  geom_vline(col = "#A6035D", xintercept = 90, size = 2) +
+  scale_y_continuous(expand = c(0, 0, 0.1, 0), breaks = c(0, 0.1, 0.2)) +
+  labs(x = "Mutation Rate", y = "Posterior Probability")
+ggsave("~/Downloads/mutation_inference.png", width = 6, height = 2.4, dpi = 500)
+```
+

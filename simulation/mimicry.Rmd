@@ -42,8 +42,12 @@ ggplot(
   ) +
   geom_ribbon(aes(`[step]`, ymin = mean - 1.9 * sd, ymax = mean + 1.9 * sd), alpha = 0.3) +
   geom_line(aes(`[step]`, mean)) +
-  scale_color_manual(values = c("#F2955E", "#CBC5D9")) +
-  facet_wrap(~ reorder(`mutation-rate`, `mutation-rate`))
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_color_manual(values = c("#8C3420", "#4EBFB4")) +
+  scale_fill_manual(values = c("#8C3420", "#4EBFB4")) +
+  facet_wrap(~ reorder(`mutation-rate`, `mutation-rate`)) +
+  labs(y = "Color", x = "Time Step", col = "Species", fill = "Species")
+ggsave("~/Downloads/mimicry_trajectory.png", dpi = 500, width = 8, height = 5)
 ```
 ```{r}
 color_diff <- color_stats %>%

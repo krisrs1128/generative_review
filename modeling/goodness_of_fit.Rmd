@@ -2,13 +2,15 @@
 title: "Heteroskedastic Mixtures"
 output: html_notebook
 ---
+
 ```{r, message = FALSE}
 library(tidyverse)
 library(caret)
 library(scico)
 library(generative)
 review_theme()
-set.seed(0318022)
+#set.seed(031722)
+set.seed(031422)
 ```
 
 * Simulate data from a heteroskedastic mixture of t's
@@ -21,15 +23,18 @@ set.seed(0318022)
 * Repeat discrimination
 
 ```{r}
-x <- t_mixture(250)
+disc_data <- list()
+p <- list()
+x <- t_mixture(500)
 ggplot(x) +
-  geom_point(aes(V1, V2, col = k)) +
-  scale_color_brewer(palette = "Set2") +
+  geom_point(aes(V1, V2)) +
+  labs(x = "dimension 1", y = "dimension 2") +
   coord_fixed()
+ggsave("~/Downloads/true_mixture.png", dpi = 400, width = 5)
 ```
 
 ```{r}
-fit <- fit_gmm(x, K = 5)
+fit <- fit_gmm(x, K = 4)
 x_sim <- mixture_predictive(fit)
 ggplot(x_sim) +
   geom_point(aes(`1`, `2`), size = 0.5, alpha = 0.8) +
@@ -38,11 +43,7 @@ ggplot(x_sim) +
 ```
 
 ```{r}
-disc_data <- bind_dicriminative(x, x_sim)
-ggplot(disc_data) +
-  geom_point(aes(V1, V2, col = y), alpha = 1, size = 0.9) +
-  scale_color_scico_d(palette = "berlin") +
-  coord_fixed()
+disc_data[["gmm"]] <- bind_dicriminative(x, x_sim)
 ```
 
 ```{r, message = FALSE}
@@ -53,26 +54,53 @@ gbmGrid <-  expand.grid(
   n.minobsinnode = 2
 )
 
-fit <- train(
-  x = disc_data %>% select(-y), 
-  y = disc_data$y, 
-  method = "gbm",
-  tuneGrid = gbmGrid
+trControl <- trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 10
 )
+
+fit <- train(
+  x = disc_data[["gmm"]] %>% select(-y) %>% as.matrix(), 
+  y = disc_data[["gmm"]]$y, 
+  method = "gbm",
+  tuneGrid = gbmGrid,
+  trControl = trControl,
+  verbose = FALSE
+)
+
+fit
 ```
 
 ```{r}
-table(disc_data$y, predict(fit))
+p[["gmm"]] <- data.frame(prob = predict(fit, disc_data[["gmm"]], type = "prob")) %>%
+  bind_cols(disc_data[["gmm"]]) %>%
+  mutate(y_label = fct_recode(y, "Posterior Samples" = "simulated", "True Data" = "true"))
 ```
 
 ```{r}
-data.frame(prob = predict(fit, disc_data, type = "prob")) %>%
-  bind_cols(disc_data) %>%
-  ggplot() +
-  geom_point(aes(V1, V2, col = prob.true)) +
-  scale_color_scico(palette = "berlin") +
-  facet_wrap(~ y) +
-  coord_fixed()
+fit <- fit_gmm_cov(x, K = 5)
+x_sim <- mixture_predictive(fit)
+```
+
+```{r, message = FALSE}
+disc_data[["gmm_cov"]] <- bind_dicriminative(x, x_sim)
+fit <- train(
+  x = disc_data[["gmm_cov"]] %>% select(-y) %>% as.matrix(), 
+  y = disc_data[["gmm_cov"]]$y, 
+  method = "gbm",
+  tuneGrid = gbmGrid,
+  trControl = trControl,
+  verbose = FALSE
+)
+
+fit
+```
+
+```{r}
+p[["gmm_cov"]] <- data.frame(prob = predict(fit, disc_data[["gmm_cov"]], type = "prob")) %>%
+  bind_cols(disc_data[["gmm_cov"]]) %>%
+  mutate(y_label = fct_recode(y, "Posterior Samples" = "simulated", "True Data" = "true"))
 ```
 
 ```{r}
@@ -84,21 +112,41 @@ ggplot(x_sim) +
   coord_fixed()
 ```
 
-```{r}
-disc_data <- bind_dicriminative(x, x_sim)
-ggplot(disc_data) +
-  geom_point(aes(V1, V2, col = y), alpha = 1, size = 0.9) +
-  scale_color_scico_d(palette = "berlin") +
-  coord_fixed()
+```{r, message = FALSE}
+disc_data[["tmm"]] <- bind_dicriminative(x, x_sim, iter = 4)
+fit <- train(
+  x = disc_data[["tmm"]] %>% select(-y) %>% as.matrix(),
+  y = disc_data[["tmm"]]$y, 
+  method = "gbm",
+  tuneGrid = gbmGrid,
+  trControl = trControl,
+  verbose = FALSE
+)
+
+fit
 ```
 
-```{r, message = FALSE}
-disc_data <- bind_dicriminative(x, x_sim)
-fit <- train(
-  x = disc_data %>% select(-y), 
-  y = disc_data$y, 
-  method = "gbm",
-  tuneGrid = gbmGrid
-)
-table(disc_data$y, predict(fit))
+```{r}
+p[["tmm"]] <- data.frame(prob = predict(fit, disc_data[["tmm"]], type = "prob")) %>%
+  bind_cols(disc_data[["tmm"]]) %>%
+  mutate(y_label = fct_recode(y, "Posterior Samples" = "simulated", "True Data" = "true"))
 ```
+
+```{r, fig.width = 7, fig.height = 4.5}
+p_df <- bind_rows(p, .id = "model") %>%
+  mutate(
+    model = fct_recode(model, "Gaussian (Shared Covarince)" = "gmm", "Gaussian (Individual Covariance)" = "gmm_cov", "Student's t (Individual Covariance)" = "tmm"),
+    y_label = factor(y_label, levels = c("True Data", "Posterior Samples"))
+    )
+
+ggplot(p_df, aes(V1, V2, col = prob.true)) +
+  geom_point(size = 1.2) +
+  scale_color_scico(palette = "berlin") +
+  labs(x = "dimension 1", y = "dimension 2", col = "Predicted Probability") +
+  xlim(-11, 11) +
+  coord_fixed() +
+  facet_grid(y_label ~ model)
+
+ggsave("~/Downloads/modeling_iteration.png", dpi = 500)
+```
+
