@@ -92,6 +92,27 @@ fit_gmm <- function(x, K = 5, model_path = NULL) {
 #' @importFrom dplyr select
 #' @importFrom magrittr %>%
 #' @export
+fit_gmm_cov <- function(x, K = 5, model_path = NULL) {
+  if (is.null(model_path)) {
+    model_path <- system.file("extdata", "gmm_cov.stan", package = "generative")
+  }
+  
+  model <- cmdstan_model(model_path)
+  input <- list(
+    K = K,
+    N = nrow(x),
+    x = x %>% select(-k),
+    alpha = rep(2, K)
+  )
+  
+  model$variational(input)
+}
+
+
+#' @importFrom cmdstanr cmdstan_model
+#' @importFrom dplyr select
+#' @importFrom magrittr %>%
+#' @export
 fit_tmm <- function(x, K = 5, model_path = NULL) {
   if (is.null(model_path)) {
     model_path <- system.file("extdata", "tmm.stan", package = "generative")
@@ -130,13 +151,13 @@ mixture_predictive <- function(fit, max_iter = 10, outlier_value = 100) {
 
 #' @importFrom dplyr bind_rows select mutate filter rename
 #' @export
-bind_dicriminative <- function(x, x_sim) {
+bind_dicriminative <- function(x, x_sim, iter = 1) {
   bind_rows(
     x %>%
       select(-k) %>%
       mutate(y = "true"),
     x_sim %>%
-      filter(.iteration == 1) %>%
+      filter(.iteration == iter) %>%
       select(`1`, `2`) %>%
       rename(V1 = `1`, V2 = `2`) %>%
       mutate(y = "simulated")
