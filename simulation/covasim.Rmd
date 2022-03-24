@@ -46,14 +46,14 @@ import covasim as cv
 
 # Create default simulation
 pars = sc.objdict(
-  pop_size = 1e4,
+  pop_size = 1e5,
   start_day = "2020-02-01",
-  end_day = "2020-04-11",
+  end_day = "2020-06-11",
   beta = 0.015,
   rel_death_prob = 1.0,
   interventions = cv.test_num(daily_tests="data")
 )
-sim = cv.Sim(pars=pars, datafile="calibration_data.csv")
+sim = cv.Sim(pars=pars, datafile="calibration.csv")
 
 # Parameters to calibrate -- format is best, low, high
 calib_pars = {
@@ -106,15 +106,28 @@ for symp_prob in np.linspace(0.1, .9, 5):
         results.append(cur_res)
 ```
 
+```{python}
+import time
+sim = cv.Sim(pars=pars)
+
+tic = time.time()
+sim.run()
+single_time = time.time() - tic
+single_time * 250 / 60
+```
+
 ```{r}
 results <- bind_rows(py$results)
 ggplot(results) +
   geom_point(
-    aes(t, log(1 + new_infections), col = as.factor(trace_time)),
+    aes(t, new_infections, col = as.factor(trace_time)),
     alpha = 0.8, size = 0.5
     ) +
   facet_grid(trace_prob ~ symp_prob) +
-  scale_color_brewer(palette = "Set2")
+  scale_color_manual(values = c("#82B0D9", "#023E73")) +
+  scale_y_continuous(breaks = c(1000, 3000), labels = scales::label_number_si()) +
+  labs(y = "New Infections", y = "time", col = "Contact Tracing Time")
+ggsave("~/Downloads/covid_trajectories.png", dpi = 500, width = 8, height = 5)
 ```
 
 Can we use a surrogate to evaluate the mean number of infections over time for
@@ -125,18 +138,21 @@ scales for different dimensions, so we rescale everything to the 0-1 interval.
 
 ```{r, message = FALSE}
 xy <- results %>%
-  filter(trace_prob == 0.1, trace_time == 1)
+  filter(trace_time == 3)
 x <- xy %>%
   select(t, symp_prob, trace_prob, trace_time)
 x_ <- apply(x, 2, function(z) z / max(z))
 x_ref <- expand.grid(
-  t = seq(0, 1, length.out = 20),
-  symp_prob = seq(0, 1, length.out = 20),
-  trace_prob = 1,
+  t = seq(0, 1, length.out = 8),
+  symp_prob = seq(0.1, .9, length.out = 50),
+  trace_prob = seq(0.1, .9, length.out = 5),
   trace_time = 1
 )
 
+tic <- Sys.time()
 y_hat <- aGP(x_, log(1 + xy$new_infections), x_ref)
+toc <- Sys.time()
+toc - tic
 ```
 
 ```{r}
@@ -147,7 +163,12 @@ y_hat_df <- cbind(x_ref, y_hat = y_hat$mean) %>%
 ```
 
 ```{r}
-ggplot(y_hat_df) +
-  geom_smooth(aes(t, y_hat, col = symp_prob, group = symp_prob), size = .5, se = F, span = 1) +
-  scale_color_scico(palette = "batlow")
+ggplot(y_hat_df %>% filter(symp_prob > 0.1)) +
+  geom_smooth(aes(t, exp(y_hat) - 1, col = symp_prob, group = symp_prob), size = .5, se = F, span = 1) +
+  labs(y = "New Infections", x = "Time", col = expression(p[test])) +
+  scale_color_scico(palette = "batlow") +
+  ylim(0, 1500) +
+  scale_y_continuous(labels = scales::label_number_si()) +
+  facet_wrap(~ trace_prob, ncol = 5)
+ggsave("~/Downloads/emulator_trajectories.png", dpi = 500, width = 9, height = 3)
 ```
