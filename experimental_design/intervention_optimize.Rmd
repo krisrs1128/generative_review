@@ -8,27 +8,28 @@ library(tidyverse)
 library(laGP)
 library(purrr)
 library(generative)
+review_theme()
 set.seed(123)
 ```
 
 ```{r}
 n_init <- 100
-n_interval <- 10
+n_interval <- 8
 intervals <- make_intervals(n_interval)
 times <- seq(-10, 10, length.out = 200)
 pf <- peak_fun(times, 1, 10, 5)
 
 # initial sample of weights
 betas <- rerun(n_init, rnorm(n_interval, 0, 1))
-losses <- map_dbl(betas, ~ evaluate_weights(., intervals, times, pf))
+losses <- map_dbl(betas, ~ evaluate_weights(., intervals, times, pf, N = 25))
 ```
 
 We compute the main bayesian optimization loop below.
 
 ```{r, message = FALSE}
 n_test <- 500
-n_add <- 20
-n_iters <- 30
+n_add <- 10
+n_iters <- 50
 
 for (i in seq_len(n_iters)) {
   
@@ -61,3 +62,101 @@ for (i in seq_along(best_ix)) {
   title(round(losses[best_ix[i]], 3))
 }
 ```
+```{r}
+w <- bind_rows(map(betas, ~ data.frame(exp(t(.)))))
+w <- w / rowSums(w)
+w$loss <- losses
+
+library(embed)
+library(tidymodels)
+w_reduce <- recipe(~ ., data = w) %>%
+  update_role(loss, new_role = "id")
+umap_rec <- step_umap(w_reduce, all_predictors(), neighbors = 30, min_dist = 0.05)
+scores <- prep(umap_rec) %>% 
+  juice() %>%
+  bind_cols(w %>% select(-loss))
+```
+
+```{r}
+ggplot(scores) +
+  geom_point(aes(umap_1, umap_2, col = log(loss), size = X5)) +
+  scale_color_viridis_c(direction = -1, limits = c(0, 8), option = "inferno")
+```
+
+```{r}
+w_df <- w %>%
+  mutate(id = row_number()) %>%
+  arrange(-loss) %>%
+  pivot_longer(starts_with("X"), names_to = "component")
+
+intervals_df <- as.data.frame(intervals)
+intervals_df$component <- paste0("X", 1:nrow(intervals))
+
+w_df <- w_df %>%
+  left_join(intervals_df)
+```
+
+```{r}
+ggplot(w_df %>% filter(log(loss) < 0.5)) +
+  geom_rect(aes(fill = loss, xmin = V1, xmax = V2, ymin = 0, ymax = value), alpha = 0.3) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0, 0.1, 0)) +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major.x = element_blank()
+  ) +
+  scale_fill_viridis_c(direction = -1, limits = c(.5, 8), option = "inferno") +
+  facet_wrap(~ round(loss, 4))
+```
+
+```{r}
+u <- map(1:8, ~ runif(25, -10, 10))
+examples <- map_dfr(u,
+  ~ data.frame(
+    u = .,
+    y = gaussian_noise(pf, .)
+  ),
+  .id = "run"
+) %>%
+  mutate(run = as.factor(run))
+
+preds <- examples %>%
+  split(.$run) %>%
+  map_dfr(~ {
+    fit <- lm(y ~ bs(u, df = 6, degree = 1, Boundary.knots = c(-10, 10)), data = .)
+    data.frame(
+      times = times,
+      mu = pf(times),
+      f_hat = predict(fit, newdata = data.frame(u = times))
+    )
+  },
+  .id = "run"
+  ) %>%
+  group_by(run) %>%
+  mutate(
+    run = as.factor(run), 
+    loss = (f_hat - mu) ^ 2
+  )
+
+truth <- data.frame(times = times, mu = pf(times))
+
+run_order <- preds %>%
+  group_by(run) %>%
+  summarise(mse = mean(loss)) %>%
+  arrange(mse) %>%
+  pull(run)
+
+preds <- preds %>%
+  mutate(run = factor(run, levels = run_order))
+examples <- examples %>%
+  mutate(run = factor(run, levels = run_order))
+
+ggplot(preds) +
+  geom_line(aes(times, mu), col = "#F27507", size = 2) +
+  geom_line(aes(times, f_hat), col = "#087F8C", size = 1.5) +
+  geom_point(data = examples, aes(u, y), col = "#221F26") +
+  facet_wrap(~ run, ncol = 4)
+  #facet_wrap(~ reorder(run, loss, mean), ncol = 4)
+  
+```
+
