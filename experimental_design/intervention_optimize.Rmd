@@ -8,13 +8,14 @@ library(tidyverse)
 library(laGP)
 library(purrr)
 library(generative)
+library(splines)
 review_theme()
 set.seed(123)
 ```
 
 ```{r}
 n_init <- 100
-n_interval <- 8
+n_interval <- 7
 intervals <- make_intervals(n_interval)
 times <- seq(-10, 10, length.out = 200)
 pf <- peak_fun(times, 1, 10, 5)
@@ -46,22 +47,13 @@ for (i in seq_len(n_iters)) {
   betas <- c(betas, new_betas)
   losses <- c(
     losses, 
-    map_dbl(new_betas, ~ evaluate_weights(., intervals, times, pf, N = 15))
+    map_dbl(new_betas, ~ evaluate_weights(., intervals, times, pf, N = 25))
   )
 }
 ```
 Here are some of the weightings that we should use for longitudinal sampling.
 They generally favor more samples in the region where the peak is located.
 
-```{r}
-hist(losses)
-best_ix <- order(losses)[1:10]
-for (i in seq_along(best_ix)) {
-  w <- exp(betas[[best_ix[i]]])
-  plot(w / sum(w))
-  title(round(losses[best_ix[i]], 3))
-}
-```
 ```{r}
 w <- bind_rows(map(betas, ~ data.frame(exp(t(.)))))
 w <- w / rowSums(w)
@@ -79,7 +71,7 @@ scores <- prep(umap_rec) %>%
 
 ```{r}
 ggplot(scores) +
-  geom_point(aes(umap_1, umap_2, col = log(loss), size = X5)) +
+  geom_point(aes(umap_1, umap_2, col = log(loss), size = X4)) +
   scale_color_viridis_c(direction = -1, limits = c(0, 8), option = "inferno")
 ```
 
@@ -96,20 +88,16 @@ w_df <- w_df %>%
   left_join(intervals_df)
 ```
 
-```{r}
-ggplot(w_df %>% filter(log(loss) < 0.5)) +
-  geom_rect(aes(fill = loss, xmin = V1, xmax = V2, ymin = 0, ymax = value), alpha = 0.3) +
-  scale_x_continuous(expand = c(0, 0)) +
+```{r, fig.width = 7, fig.height = 1.5}
+ggplot(w_df %>% filter(log(loss) < 0.08)) +
+  geom_rect(aes(xmin = V1, xmax = V2, ymin = 0, ymax = value), fill = "#262526") +
+  scale_x_continuous(expand = c(0, 0), breaks = c(-5, 0, 5)) +
   scale_y_continuous(expand = c(0, 0, 0.1, 0)) +
-  theme(
-    panel.background = element_rect(fill = "white"),
-    panel.grid.major.x = element_blank()
-  ) +
-  scale_fill_viridis_c(direction = -1, limits = c(.5, 8), option = "inferno") +
-  facet_wrap(~ round(loss, 4))
+  facet_grid(. ~ round(loss, 4))
+ggsave("~/Downloads/best_weights.png")
 ```
 
-```{r}
+```{r, fig.width = 5.25, fig.height = 2.25}
 u <- map(1:8, ~ runif(25, -10, 10))
 examples <- map_dfr(u,
   ~ data.frame(
@@ -155,8 +143,9 @@ ggplot(preds) +
   geom_line(aes(times, mu), col = "#F27507", size = 2) +
   geom_line(aes(times, f_hat), col = "#087F8C", size = 1.5) +
   geom_point(data = examples, aes(u, y), col = "#221F26") +
+  labs(y = "y", x = "time") +
   facet_wrap(~ run, ncol = 4)
-  #facet_wrap(~ reorder(run, loss, mean), ncol = 4)
   
+ggsave("~/Downloads/peak_samples.png", dpi = 800)
 ```
 

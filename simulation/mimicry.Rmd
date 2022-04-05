@@ -7,6 +7,7 @@ output: pdf_document
 library(nlrx)
 library(tidyverse)
 library(generative)
+review_theme()
 
 dir.create("nl")
 #download_netlogo("nl/", "6.1.0") # have to manually install
@@ -40,7 +41,7 @@ ggplot(
     color_stats %>% filter(siminputrow < 10), 
     aes(`[step]`, fill = breed, col = breed)
   ) +
-  geom_ribbon(aes(`[step]`, ymin = mean - 1.9 * sd, ymax = mean + 1.9 * sd), alpha = 0.3) +
+  geom_ribbon(aes(`[step]`, ymin = mean - sd, ymax = mean + sd), alpha = 0.3) +
   geom_line(aes(`[step]`, mean)) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_color_manual(values = c("#8C3420", "#4EBFB4")) +

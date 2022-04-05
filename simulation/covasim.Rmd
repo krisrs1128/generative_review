@@ -126,7 +126,7 @@ ggplot(results) +
   facet_grid(trace_prob ~ symp_prob) +
   scale_color_manual(values = c("#82B0D9", "#023E73")) +
   scale_y_continuous(breaks = c(1000, 3000), labels = scales::label_number_si()) +
-  labs(y = "New Infections", y = "time", col = "Contact Tracing Time")
+  labs(y = "New Infections", x = "time", col = "Contact Tracing Time")
 ggsave("~/Downloads/covid_trajectories.png", dpi = 500, width = 8, height = 5)
 ```
 
