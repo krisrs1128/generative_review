@@ -135,7 +135,7 @@ p[["tmm"]] <- data.frame(prob = predict(fit, disc_data[["tmm"]], type = "prob"))
 ```{r, fig.width = 7, fig.height = 4.5}
 p_df <- bind_rows(p, .id = "model") %>%
   mutate(
-    model = fct_recode(model, "Gaussian (Shared Covarince)" = "gmm", "Gaussian (Individual Covariance)" = "gmm_cov", "Student's t (Individual Covariance)" = "tmm"),
+    model = fct_recode(model, "Gaussian (Shared Covariance)" = "gmm", "Gaussian (Individual Covariance)" = "gmm_cov", "Student's t (Individual Covariance)" = "tmm"),
     y_label = factor(y_label, levels = c("True Data", "Posterior Samples"))
     )
 
@@ -150,3 +150,25 @@ ggplot(p_df, aes(V1, V2, col = prob.true)) +
 ggsave("~/Downloads/modeling_iteration.png", dpi = 500)
 ```
 
+```{r}
+for (m in unique(p_df$model)) {
+  p_df %>%
+    filter(y_label == "Posterior Samples", model == m) %>%
+    ggplot() +
+    geom_point(aes(V1, V2)) +
+    xlim(-11, 11) +
+    coord_fixed() +
+    labs(x = "dimension 1", y = "dimension 2")
+  ggsave(glue::glue("~/Downloads/{m}.png"), width = 5.5, height = 4.5)
+  
+  p_df %>%
+    filter(y_label == "Posterior Samples", model == m) %>%
+    ggplot() +
+    geom_point(aes(V1, V2, col = prob.true)) +
+    scale_color_scico(palette = "berlin") +
+    xlim(-11, 11) +
+    coord_fixed() +
+    labs(x = "dimension 1", y = "dimension 2")
+  ggsave(glue::glue("~/Downloads/{m}-prob.png"), width = 5.5, height = 4.5)
+}
+```
