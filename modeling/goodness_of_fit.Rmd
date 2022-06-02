@@ -147,7 +147,7 @@ ggplot(p_df, aes(V1, V2, col = prob.true)) +
   coord_fixed() +
   facet_grid(y_label ~ model)
 
-ggsave("~/Downloads/modeling_iteration.png", dpi = 500)
+ggsave("~/Downloads/modeling_iteration.png", dpi = 500, width = 1.1 * 7, height = 1.1 * 4.5)
 ```
 
 ```{r}
@@ -170,5 +170,15 @@ for (m in unique(p_df$model)) {
     coord_fixed() +
     labs(x = "dimension 1", y = "dimension 2")
   ggsave(glue::glue("~/Downloads/{m}-prob.png"), width = 5.5, height = 4.5)
+  
+  p_df %>%
+    filter(y_label == "True Data", model == m) %>%
+    ggplot() +
+    geom_point(aes(V1, V2, col = prob.true)) +
+    scale_color_scico(palette = "berlin") +
+    xlim(-11, 11) +
+    coord_fixed() +
+    labs(x = "dimension 1", y = "dimension 2")
+  ggsave(glue::glue("~/Downloads/true-{m}-prob.png"), width = 5.5, height = 4.5)
 }
 ```
