@@ -5,4 +5,4 @@ This repository contains implementing the examples from _Generative Models: An I
 * `modeling`: Mixture modeling example.
 * `simulation`: Batesian mimicry and COVID-19 forecasting examples.
 
-Don't hesitate to raise an [issue](https://github.com/krisrs1128/generative_review/issues) or [contact us](ksankaran@wisc.edu) if you encounter any issues.
+Don't hesitate to raise an [issue](https://github.com/krisrs1128/generative_review/issues) or [contact us](mailto:ksankaran@wisc.edu) if you encounter any issues.
