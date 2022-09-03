@@ -9,8 +9,7 @@ library(caret)
 library(scico)
 library(generative)
 review_theme()
-#set.seed(031722)
-set.seed(031422)
+set.seed(090322)
 ```
 
 * Simulate data from a heteroskedastic mixture of t's
