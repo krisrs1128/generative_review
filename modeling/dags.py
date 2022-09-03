@@ -9,7 +9,7 @@ pgm.add_plate([0, 0, 2, 1], label=r"$i = 1, \cdots, N$", shift=-0.1)
 pgm.add_edge("xi", "yi")
 pgm.add_edge("beta", "yi")
 pgm.render()
-pgm.savefig("lr.png", dpi=800)
+pgm.savefig("lr.svg", dpi=800)
 
 
 # hierarchical model
@@ -21,7 +21,7 @@ pgm.add_edge("beta", "betai")
 pgm.add_edge("betai", "yi")
 pgm.add_plate([.5, 0, 2, 1], label=r"$i = 1, \cdots, N$", shift=-0.1)
 pgm.render()
-pgm.savefig("hierarchical.png", dpi=800)
+pgm.savefig("hierarchical.svg", dpi=800)
 
 # linear regression
 pgm = daft.PGM()
@@ -34,7 +34,7 @@ pgm.add_edge("alpha", "zi")
 pgm.add_edge("zi", "yi")
 pgm.add_edge("beta", "yi")
 pgm.render()
-pgm.savefig("latent.png", dpi=800)
+pgm.savefig("latent.svg", dpi=800)
 
 # latent markov
 pgm = daft.PGM()
@@ -52,4 +52,4 @@ pgm.add_edge("z1", "z2")
 pgm.add_edge("z2", "zdots")
 pgm.add_edge("zdots", "zT")
 pgm.render()
-pgm.savefig("latent_markov.png", dpi=800)
+pgm.savefig("latent_markov.svg", dpi=800)
