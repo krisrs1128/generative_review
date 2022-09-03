@@ -127,7 +127,7 @@ ggplot(results) +
   scale_color_manual(values = c("#82B0D9", "#023E73")) +
   scale_y_continuous(breaks = c(1000, 3000), labels = scales::label_number_si()) +
   labs(y = "New Infections", x = "time", col = "Contact Tracing Time")
-ggsave("~/Downloads/covid_trajectories.svg", dpi = 500, width = 8, height = 5)
+ggsave("~/Downloads/covid_trajectories.png", dpi = 500, width = 8, height = 5)
 ```
 
 Can we use a surrogate to evaluate the mean number of infections over time for
@@ -170,5 +170,5 @@ ggplot(y_hat_df %>% filter(symp_prob > 0.1)) +
   ylim(0, 1500) +
   scale_y_continuous(labels = scales::label_number_si()) +
   facet_wrap(~ trace_prob, ncol = 5)
-ggsave("~/Downloads/emulator_trajectories.svg", dpi = 500, width = 9, height = 3)
+ggsave("~/Downloads/emulator_trajectories.png", dpi = 500, width = 9, height = 3)
 ```

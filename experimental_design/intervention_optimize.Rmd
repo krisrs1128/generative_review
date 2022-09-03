@@ -94,10 +94,10 @@ ggplot(w_df %>% filter(log(loss) < 0.08)) +
   scale_x_continuous(expand = c(0, 0), breaks = c(-5, 0, 5)) +
   scale_y_continuous(expand = c(0, 0, 0.1, 0)) +
   facet_grid(. ~ round(loss, 4))
-ggsave("~/Downloads/best_weights.svg")
+ggsave("~/Downloads/best_weights.png")
 ```
 
-```{r, fig.width = 7.85, fig.height = 3.375}
+```{r, fig.width = 7.875, fig.height = 3.375}
 u <- map(1:8, ~ runif(25, -10, 10))
 examples <- map_dfr(u,
   ~ data.frame(
@@ -146,6 +146,6 @@ ggplot(preds) +
   labs(y = "y", x = "time") +
   facet_wrap(~ run, ncol = 4)
   
-ggsave("~/Downloads/peak_samples.svg", dpi = 800, width =  5.25, height = 2.25)
+ggsave("~/Downloads/peak_samples.png", dpi = 800)
 ```
 
