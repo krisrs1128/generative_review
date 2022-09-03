@@ -97,7 +97,7 @@ bind_rows(treatment_estimates, .id = "design") %>%
   labs(x = "Taxon", y = "Effect", col = "Treatment") +
   facet_grid(design ~ .)
 
-ggsave("~/Downloads/blocking_counts.png", dpi = 500, height = 4, width = 7)
+ggsave("~/Downloads/blocking_counts.svg", dpi = 500, height = 4, width = 7)
 ```
 
 The relative efficiency of the blocked vs. unblocked estimator (for this setting
