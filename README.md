@@ -1,6 +1,6 @@
 This repository implements the examples from _Generative Models: An Interdisciplinary Perspective_. The structure is,
 
-* `generative`: An R package containing helper functions used throughtout the review.
+* `generative`: An R package containing helper functions used throughout the review.
 * `experimental_design`: Longitudinal design and blocking examples.
 * `modeling`: Mixture modeling example.
 * `simulation`: Batesian mimicry and COVID-19 forecasting examples.
