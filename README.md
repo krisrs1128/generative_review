@@ -1,4 +1,4 @@
-This repository contains implementing the examples from _Generative Models: An Interdisciplinary Perspective_. The structure is,
+This repository implements the examples from _Generative Models: An Interdisciplinary Perspective_. The structure is,
 
 * `generative`: An R package containing helper functions used throughtout the review.
 * `experimental_design`: Longitudinal design and blocking examples.
